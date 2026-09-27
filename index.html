@@ -355,6 +355,12 @@
     width:100%; height:100%;
     display:block;
   }
+  /* drag-to-look is desktop only: on mobile the canvas stays pointer-events
+     none (inherited from #flowerBed/.stage) so a finger drag still scrolls
+     the page like normal, instead of getting eaten by camera dragging */
+  @media (min-width: 761px){
+    #flowerBed canvas{ pointer-events:auto; cursor:grab; }
+  }
   /* the closing line sits on the very bottom of the last screen. It rides
      in with the full bloom, so it never floats over the growing flower. */
   #flowerBed footer{
@@ -807,16 +813,16 @@ const PARAMS = {
   },
   petals: {
     count: 6,
-    length: 0.52,
-    maxWidth: 0.095,
+    length: 0.5,
+    maxWidth: 0.13,
     baseOffset: 0.008,
-    curlExponent: 2.6,
+    curlExponent: 2.0,
     lengthSegments: 18,
     widthSegments: 9,
-    edgeRippleAmp: 0.016,
-    edgeRippleFreq: 4.0,
-    color: 0xd8102a,
-    emissive: 0x550000,
+    edgeRippleAmp: 0.012,
+    edgeRippleFreq: 3.0,
+    color: 0xff6a13,
+    emissive: 0x5a2200,
     spotCount: 0,
     spotSize: 0.09,
     spotStrength: 0.45,
@@ -824,28 +830,28 @@ const PARAMS = {
   },
   stamens: {
     count: 18,
-    lengthRatio: 1.3,
+    lengthRatio: 1.25,
     rootSink: 0.03,
     polarMinDeg: 18,
     polarMaxDeg: 60,
-    outwardDeg: 75,
-    hookDeg: 115,
-    hookSharpness: 3.4,
+    outwardDeg: 78,
+    hookDeg: 110,
+    hookSharpness: 3.0,
     lengthVariation: 0.15,
     radius: 0.005,
-    color: 0xff2233,
-    antherColor: 0xffb060,
+    color: 0xb33d00,
+    antherColor: 0x7a2b00,
     antherSize: 0.009,
   },
   bloomPoses: {
     bud:    { petalTilt: 3,  recurve: -8,  petalSpin: 0,  stamen: 0    },
-    lift:   { petalTilt: 14, recurve: 10,  petalSpin: 14, stamen: 0    },
-    arch:   { petalTilt: 55, recurve: 70,  petalSpin: 32, stamen: 0    },
-    full:   { petalTilt: 62, recurve: 112, petalSpin: 46, stamen: 1    },
-    settle: { petalTilt: 58, recurve: 102, petalSpin: 42, stamen: 0.96 },
+    lift:   { petalTilt: 16, recurve: 14,  petalSpin: 16, stamen: 0    },
+    arch:   { petalTilt: 70, recurve: 100, petalSpin: 38, stamen: 0    },
+    full:   { petalTilt: 78, recurve: 150, petalSpin: 52, stamen: 1    },
+    settle: { petalTilt: 74, recurve: 142, petalSpin: 48, stamen: 0.96 },
   },
   // kept gentle: the glow should kiss the anthers, not fog the whole page
-  glow: { strength: 0.55, radius: 0.32, threshold: 0.4 },
+  glow: { strength: 1.1, radius: 0.55, threshold: 0.12 },
 
   // manual mode only — same numbers as index_flower.html so the hands feel
   // identical there and here
@@ -872,6 +878,21 @@ for (const stage of ['bud', 'lift', 'arch', 'full', 'settle']) {
 /* how much the flower heads are allowed to spread; the camera fit uses this
    so a fully open bloom never runs off the screen */
 const BLOOM_SPREAD = 1.35;
+
+/* -------------------------------------------------------------------------
+   MOBILE PERF PROFILE — phones choke on full pixel-ratio + antialiasing +
+   full-res bloom + dense petal/stamen geometry. None of this touches
+   desktop: isMobile is false there, so every branch below falls through to
+   the original values untouched.
+   ------------------------------------------------------------------------- */
+const isMobile = window.matchMedia('(max-width: 760px)').matches ||
+  /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+if (isMobile) {
+  PARAMS.petals.lengthSegments = 10;   // was 18 — fewer verts per petal
+  PARAMS.petals.widthSegments = 5;     // was 9
+  PARAMS.plant.segmentsPerBranch = 6;  // was 10 — coarser stem tubes
+}
 
 /* -------------------------------------------------------------------------
    seeded random — one plant shape per seed, same shape every reload of a seed
@@ -926,8 +947,9 @@ const stage = bed ? bed.querySelector('.stage') : null;
 const closingLine = bed ? bed.querySelector('footer') : null;
 const canvas = document.getElementById('flowerCanvas');
 
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, alpha: true });
+renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio, 1) :
+  Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 0);
 
 const scene = new THREE.Scene();
@@ -944,6 +966,78 @@ scene.add(keyLight);
 const rimLight = new THREE.DirectionalLight(0x9fb6ff, 0.5);
 rimLight.position.set(-3, 1.5, -4);
 scene.add(rimLight);
+
+/* ---- starfield: a loose dome of points above the plant (from
+   index_flower.html) — sizeAttenuation + additive-friendly opacity so it
+   reads as ambient sparkle rather than an opaque backdrop, keeping the
+   page's own background visible through the transparent canvas */
+const STAR_COUNT = isMobile ? 110 : 220;
+const starPositions = new Float32Array(STAR_COUNT * 3);
+const starColors = new Float32Array(STAR_COUNT * 3);
+for (let i = 0; i < STAR_COUNT; i++) {
+  const azimuth = Math.random() * Math.PI * 2;
+  const polar = Math.random() * Math.PI * 0.46;
+  const radius = 30 + Math.random() * 16;
+  starPositions[i * 3]     = radius * Math.sin(polar) * Math.cos(azimuth);
+  starPositions[i * 3 + 1] = radius * Math.cos(polar);
+  starPositions[i * 3 + 2] = radius * Math.sin(polar) * Math.sin(azimuth);
+  const brightness = 0.35 + Math.random() * 0.65;
+  starColors[i * 3] = starColors[i * 3 + 1] = starColors[i * 3 + 2] = brightness;
+}
+const starGeometry = new THREE.BufferGeometry();
+starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+starGeometry.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+const starMaterial = new THREE.PointsMaterial({
+  size: 0.16, vertexColors: true, transparent: true, opacity: 0.55,
+  depthWrite: false, sizeAttenuation: true,
+});
+const starfield = new THREE.Points(starGeometry, starMaterial);
+starfield.frustumCulled = false;
+scene.add(starfield);
+
+/* ---- fireflies: warm drifting pollen-like points around the plant ---- */
+const FIREFLY_COUNT = isMobile ? 32 : 64;
+const fireflyBase = new Float32Array(FIREFLY_COUNT * 3);
+const fireflyPhase = new Float32Array(FIREFLY_COUNT);
+const fireflyPositions = new Float32Array(FIREFLY_COUNT * 3);
+const fireflyColors = new Float32Array(FIREFLY_COUNT * 3);
+for (let i = 0; i < FIREFLY_COUNT; i++) {
+  fireflyBase[i * 3]     = (Math.random() - 0.5) * 8;
+  fireflyBase[i * 3 + 1] = -1 + Math.random() * 4;
+  fireflyBase[i * 3 + 2] = (Math.random() - 0.5) * 6;
+  fireflyPhase[i] = Math.random() * Math.PI * 2;
+  fireflyPositions[i * 3]     = fireflyBase[i * 3];
+  fireflyPositions[i * 3 + 1] = fireflyBase[i * 3 + 1];
+  fireflyPositions[i * 3 + 2] = fireflyBase[i * 3 + 2];
+  fireflyColors[i * 3] = fireflyColors[i * 3 + 1] = fireflyColors[i * 3 + 2] = 1;
+}
+const fireflyGeometry = new THREE.BufferGeometry();
+fireflyGeometry.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
+fireflyGeometry.setAttribute('color', new THREE.BufferAttribute(fireflyColors, 3));
+const fireflyMaterial = new THREE.PointsMaterial({
+  size: 0.035, vertexColors: true, transparent: true, opacity: 0.9,
+  depthWrite: false, blending: THREE.AdditiveBlending,
+});
+const fireflies = new THREE.Points(fireflyGeometry, fireflyMaterial);
+fireflies.frustumCulled = false;
+scene.add(fireflies);
+
+function updateFireflies(elapsed) {
+  for (let i = 0; i < FIREFLY_COUNT; i++) {
+    const bobX = Math.sin(elapsed * 0.45 + fireflyPhase[i]) * 0.3;
+    const bobY = Math.sin(elapsed * 0.6 + fireflyPhase[i] * 1.7) * 0.35;
+    const bobZ = Math.cos(elapsed * 0.35 + fireflyPhase[i] * 0.8) * 0.3;
+    fireflyPositions[i * 3]     = fireflyBase[i * 3] + bobX;
+    fireflyPositions[i * 3 + 1] = fireflyBase[i * 3 + 1] + bobY;
+    fireflyPositions[i * 3 + 2] = fireflyBase[i * 3 + 2] + bobZ;
+    const flicker = 0.4 + 0.6 * (0.5 + 0.5 * Math.sin(elapsed * 2.4 + fireflyPhase[i] * 3));
+    fireflyColors[i * 3]     = flicker;
+    fireflyColors[i * 3 + 1] = flicker * 0.9;
+    fireflyColors[i * 3 + 2] = flicker * 0.55;
+  }
+  fireflyGeometry.attributes.position.needsUpdate = true;
+  fireflyGeometry.attributes.color.needsUpdate = true;
+}
 
 /* selective bloom: the glow pass renders the plant alone, then gets added
    back over the normal render. Alpha is carried through so the halo shows
@@ -1214,7 +1308,7 @@ function buildStamenGeometry() {
   const beforeTip = pathPoints[pathPoints.length - 2];
   const tipTangent = tipPosition.clone().sub(beforeTip);
   return {
-    geometry: new THREE.TubeGeometry(curve, 24, conf.radius, 5, false),
+    geometry: new THREE.TubeGeometry(curve, isMobile ? 10 : 24, conf.radius, isMobile ? 4 : 5, false),
     tipPosition: tipPosition.clone(),
     tipAngle: Math.atan2(tipTangent.z, tipTangent.y),
   };
@@ -1557,11 +1651,62 @@ function resize() {
   const height = Math.max(2, window.innerHeight);
   renderer.setSize(width, height, false);   // CSS already sets the box size
   composer.setSize(width, height);
-  bloomComposer.setSize(width, height);
+  // bloom is a blurred pass anyway, so a lower-res render target costs
+  // nothing visually and roughly quarters the pixel work on phones
+  const bloomWidth = isMobile ? Math.max(2, Math.round(width / 2)) : width;
+  const bloomHeight = isMobile ? Math.max(2, Math.round(height / 2)) : height;
+  bloomComposer.setSize(bloomWidth, bloomHeight);
   cam.aspect = width / height;
   cam.updateProjectionMatrix();
   fitPlant();
 }
+
+/* -------------------------------------------------------------------------
+   DRAG-TO-LOOK — click/drag the flower to swing the camera around it.
+   Adds a yaw/pitch offset on top of the existing slow auto-turntable
+   rather than replacing it, so it still turns gently on its own when you
+   let go. Desktop only (see the pointer-events:auto media query in the
+   CSS) so a touch-drag on mobile keeps scrolling the page as normal.
+   ------------------------------------------------------------------------- */
+let dragYaw = 0;
+let dragPitch = 0;
+let isDragging = false;
+let lastPointerX = 0;
+let lastPointerY = 0;
+let lastMoveTime = 0;
+let yawVelocity = 0;    // radians/sec, carries the swing on after release
+let pitchVelocity = 0;
+
+canvas.addEventListener('pointerdown', (event) => {
+  isDragging = true;
+  lastPointerX = event.clientX;
+  lastPointerY = event.clientY;
+  lastMoveTime = performance.now();
+  yawVelocity = 0;
+  pitchVelocity = 0;
+  canvas.style.cursor = 'grabbing';
+});
+window.addEventListener('pointermove', (event) => {
+  if (!isDragging) return;
+  const now = performance.now();
+  const dt = Math.max((now - lastMoveTime) / 1000, 1 / 120);
+  const deltaX = event.clientX - lastPointerX;
+  const deltaY = event.clientY - lastPointerY;
+  lastPointerX = event.clientX;
+  lastPointerY = event.clientY;
+  lastMoveTime = now;
+  const yawStep = -deltaX * 0.006;
+  const pitchStep = -deltaY * 0.004;
+  dragYaw += yawStep;
+  dragPitch = THREE.MathUtils.clamp(dragPitch + pitchStep, -0.55, 0.55);
+  // smoothed instantaneous velocity, so a flick at release keeps swinging
+  yawVelocity = yawVelocity * 0.5 + (yawStep / dt) * 0.5;
+  pitchVelocity = pitchVelocity * 0.5 + (pitchStep / dt) * 0.5;
+});
+window.addEventListener('pointerup', () => {
+  isDragging = false;
+  canvas.style.cursor = 'grab';
+});
 
 /* -------------------------------------------------------------------------
    PINNED CHROME — the side nav, the title, the location line and the
@@ -1983,13 +2128,27 @@ function animate() {
 
   applyGrow(grow);
   applyBloom(bloom);
+  updateFireflies(elapsed);
+
+  // let go of a drag and it keeps swinging, decaying to a stop
+  if (!isDragging && (yawVelocity !== 0 || pitchVelocity !== 0)) {
+    dragYaw += yawVelocity * deltaSeconds;
+    dragPitch = THREE.MathUtils.clamp(
+      dragPitch + pitchVelocity * deltaSeconds, -0.55, 0.55);
+    const decay = Math.exp(-deltaSeconds / 0.35);
+    yawVelocity *= decay;
+    pitchVelocity *= decay;
+    if (Math.abs(yawVelocity) < 0.001) yawVelocity = 0;
+    if (Math.abs(pitchVelocity) < 0.001) pitchVelocity = 0;
+  }
 
   // slow turntable so the flower reads in the round, plus a soft idle sway
-  const orbit = elapsed * 0.1;
+  // and whatever yaw/pitch the drag has added on top
+  const orbit = elapsed * 0.1 + dragYaw;
   cam.position.set(
-    Math.sin(orbit) * CAM_DIST,
-    FOCUS_Y + Math.sin(elapsed * 0.25) * 0.06,
-    Math.cos(orbit) * CAM_DIST);
+    Math.sin(orbit) * CAM_DIST * Math.cos(dragPitch),
+    FOCUS_Y + Math.sin(elapsed * 0.25) * 0.06 + Math.sin(dragPitch) * CAM_DIST,
+    Math.cos(orbit) * CAM_DIST * Math.cos(dragPitch));
   cam.lookAt(0, FOCUS_Y, 0);
   plantGroup.rotation.z = Math.sin(elapsed * 0.3) * 0.015;
 
