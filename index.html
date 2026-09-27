@@ -6,8 +6,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arkyn</title>
-<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<title>Arkyn</title>  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.166.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.166.0/examples/jsm/",
+      "animejs": "https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.es.js"
+    }
+  }
+  </script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Noto+Serif+JP:wght@400;500&display=swap');
 
@@ -194,6 +202,44 @@
 
   #page{ opacity:0; transition: opacity 1s ease; }
   #page.show{ opacity:1; }
+
+  /* ---- flower bed: the scroll runway at the end of the page.
+     It is deliberately taller than the screen: the stage below is pinned to
+     the viewport, so the flower stays perfectly framed the whole way down
+     while you scroll through this runway, and it is fully grown and fully
+     bloomed by the time you reach the bottom of the page. ---- */  #flowerBed{
+    /* has to outrank #projects (z-index 5) or that section's opaque paper
+       background paints a hard rectangle straight through the fade */
+    position:relative; z-index:7;
+    height:200vh;
+    pointer-events:none;
+  }
+  #flowerBed .stage{
+    position:fixed; inset:0;
+    pointer-events:none;
+    opacity:0;                     /* JS fades this in as you enter */
+  }
+  /* the page goes to black over the whole screen as you arrive, so the
+     blooms and their glow have a clean dark stage to sit on */
+  #flowerBed .night{
+    position:absolute; inset:0;
+    background:#000;
+  }
+  #flowerBed canvas{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    display:block;
+  }
+  /* the closing line sits on the very bottom of the last screen. It rides
+     in with the full bloom, so it never floats over the growing flower. */
+  #flowerBed footer{
+    position:absolute; left:0; right:0; bottom:0;
+    padding:28px 20px 34px;
+    text-align:center;
+    font-size:12px; letter-spacing:0.08em;
+    color: rgba(239,236,230,0.55);
+    opacity:0;                     /* JS brings this in with the full bloom */
+  }
 </style>
 </head>
 <body>
@@ -212,6 +258,7 @@
     <div class="kv-jp-caption">記録を、綴る。</div>
   </div>
 
+  <!-- lily canvas: blooms on scroll down, unblooms on scroll up -->
   <div class="kv-title">kyn<br><br></div>
   <div class="kv-onair">Bulacan</div>
 
@@ -292,7 +339,16 @@
   <section id="projects" style="min-height:60vh; background:var(--paper); position:relative; z-index:5;">
   </section>
 
-  <footer>from me, to you</footer>
+  <!-- the flower's own space at the very bottom of the page: from here to
+       the end of the page it grows, and it blooms as you reach the bottom.
+       The closing line lives on the last screen, at the very bottom. -->
+  <section id="flowerBed">
+    <div class="stage">
+      <div class="night"></div>
+      <canvas id="flowerCanvas" aria-hidden="true"></canvas>
+      <footer>from me, to you</footer>
+    </div>
+  </section>
 
   </div><!-- /#page -->
 
@@ -360,6 +416,1002 @@
   btnJa.addEventListener('click', () => setLang('ja'));
   btnEn.addEventListener('click', () => setLang('en'));
 </script>
+
+  <script type="module">
+/* =========================================================================
+   FLOWER BED — the space at the very bottom of the page.
+   Same plant / petal / stamen / bloom engine as index flower.html, with the
+   webcam and hand tracking stripped out. Scroll drives it instead: from the
+   moment this section appears to the very bottom of the page the plant grows
+   and blooms in proportion — halfway down, halfway grown.
+
+   One species is picked at random on every page load.
+   ========================================================================= */
+import * as THREE from 'three';
+import anime from 'animejs';
+import { EffectComposer }   from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass }       from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass }  from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { ShaderPass }       from 'three/addons/postprocessing/ShaderPass.js';
+import { OutputPass }       from 'three/addons/postprocessing/OutputPass.js';
+
+/* -------------------------------------------------------------------------
+   SPECIES — same presets as index flower.html. One is chosen at random.
+   ------------------------------------------------------------------------- */
+const SPECIES = [
+  {
+    id: 'spiderLily', name: 'Spider Lily',
+    petals: { count: 6, length: 0.52, maxWidth: 0.095, curlExponent: 2.6,
+      edgeRippleAmp: 0.016, edgeRippleFreq: 4.0,
+      color: 0xd8102a, emissive: 0x550000 },
+    stamens: { count: 18, lengthRatio: 1.3, outwardDeg: 75, hookDeg: 115,
+      hookSharpness: 3.4, color: 0xff2233, antherColor: 0xffb060 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -8,  petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 14, recurve: 10,  petalSpin: 14, stamen: 0    },
+      arch:   { petalTilt: 55, recurve: 70,  petalSpin: 32, stamen: 0    },
+      full:   { petalTilt: 62, recurve: 112, petalSpin: 46, stamen: 1    },
+      settle: { petalTilt: 58, recurve: 102, petalSpin: 42, stamen: 0.96 } },
+  },
+  {
+    id: 'tigerLily', name: 'Tiger Lily',
+    petals: { count: 6, length: 0.5, maxWidth: 0.13, curlExponent: 2.0,
+      edgeRippleAmp: 0.012, edgeRippleFreq: 3.0,
+      color: 0xff6a13, emissive: 0x5a2200 },
+    stamens: { count: 18, lengthRatio: 1.25, outwardDeg: 78, hookDeg: 110,
+      hookSharpness: 3.0, color: 0xb33d00, antherColor: 0x7a2b00 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -8,  petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 16, recurve: 14,  petalSpin: 16, stamen: 0    },
+      arch:   { petalTilt: 70, recurve: 100, petalSpin: 38, stamen: 0    },
+      full:   { petalTilt: 78, recurve: 150, petalSpin: 52, stamen: 1    },
+      settle: { petalTilt: 74, recurve: 142, petalSpin: 48, stamen: 0.96 } },
+  },
+  {
+    id: 'cherryBlossom', name: 'Cherry Blossom',
+    petals: { count: 5, length: 0.30, maxWidth: 0.16, curlExponent: 1.0,
+      edgeRippleAmp: 0.006, edgeRippleFreq: 5.0,
+      color: 0xffc0d9, emissive: 0x220011 },
+    stamens: { count: 10, lengthRatio: 0.85, outwardDeg: 60, hookDeg: 70,
+      hookSharpness: 2.4, color: 0xffe1a8, antherColor: 0xffd24d },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -5, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 20, recurve: 6,  petalSpin: 8,  stamen: 0    },
+      arch:   { petalTilt: 55, recurve: 22, petalSpin: 16, stamen: 0    },
+      full:   { petalTilt: 82, recurve: 38, petalSpin: 22, stamen: 1    },
+      settle: { petalTilt: 80, recurve: 34, petalSpin: 20, stamen: 0.96 } },
+  },
+  {
+    id: 'iris', name: 'Iris',
+    petals: { count: 6, length: 0.60, maxWidth: 0.07, curlExponent: 3.2,
+      edgeRippleAmp: 0.014, edgeRippleFreq: 4.5,
+      color: 0x4b3aa0, emissive: 0x140a33 },
+    stamens: { count: 14, lengthRatio: 1.1, outwardDeg: 70, hookDeg: 105,
+      hookSharpness: 3.6, color: 0xffe066, antherColor: 0xffcc33 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -10, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 12, recurve: 12,  petalSpin: 10, stamen: 0    },
+      arch:   { petalTilt: 48, recurve: 75,  petalSpin: 26, stamen: 0    },
+      full:   { petalTilt: 56, recurve: 118, petalSpin: 36, stamen: 1    },
+      settle: { petalTilt: 52, recurve: 108, petalSpin: 33, stamen: 0.96 } },
+  },
+  {
+    id: 'orchid', name: 'Orchid',
+    petals: { count: 6, length: 0.50, maxWidth: 0.10, curlExponent: 2.0,
+      edgeRippleAmp: 0.010, edgeRippleFreq: 3.5,
+      color: 0xc026d3, emissive: 0x3a0a3a },
+    stamens: { count: 14, lengthRatio: 1.05, outwardDeg: 68, hookDeg: 95,
+      hookSharpness: 3.2, color: 0xfff3e0, antherColor: 0xffd24d },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -6, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 15, recurve: 10, petalSpin: 12, stamen: 0    },
+      arch:   { petalTilt: 50, recurve: 60, petalSpin: 28, stamen: 0    },
+      full:   { petalTilt: 60, recurve: 90, petalSpin: 40, stamen: 1    },
+      settle: { petalTilt: 56, recurve: 82, petalSpin: 37, stamen: 0.96 } },
+  },
+  {
+    id: 'stargazerLily', name: 'Stargazer Lily',
+    petals: { count: 6, length: 0.55, maxWidth: 0.115, curlExponent: 1.8,
+      edgeRippleAmp: 0.010, edgeRippleFreq: 3.2,
+      color: 0xff5c9e, emissive: 0x551a33,
+      spotCount: 22, spotSize: 0.085, spotStrength: 0.5,
+      grooveStrength: 0.22 },
+    stamens: { count: 18, lengthRatio: 1.42, outwardDeg: 80, hookDeg: 118,
+      hookSharpness: 2.9, color: 0x9a5a2a, antherColor: 0x6b3018,
+      antherSize: 0.012 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -7,  petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 15, recurve: 12,  petalSpin: 15, stamen: 0    },
+      arch:   { petalTilt: 68, recurve: 95,  petalSpin: 36, stamen: 0    },
+      full:   { petalTilt: 76, recurve: 132, petalSpin: 48, stamen: 1    },
+      settle: { petalTilt: 72, recurve: 124, petalSpin: 44, stamen: 0.96 } },
+  },
+  {
+    id: 'easterLily', name: 'Easter Lily',
+    petals: { count: 6, length: 0.56, maxWidth: 0.125, curlExponent: 1.7,
+      edgeRippleAmp: 0.008, edgeRippleFreq: 3.0,
+      color: 0xfffdf2, emissive: 0x221a08, grooveStrength: 0.16 },
+    stamens: { count: 18, lengthRatio: 1.2, outwardDeg: 74, hookDeg: 100,
+      hookSharpness: 3.0, color: 0xd8c04a, antherColor: 0xa88828,
+      antherSize: 0.010 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -6, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 14, recurve: 10, petalSpin: 12, stamen: 0    },
+      arch:   { petalTilt: 58, recurve: 46, petalSpin: 26, stamen: 0    },
+      full:   { petalTilt: 66, recurve: 62, petalSpin: 34, stamen: 1    },
+      settle: { petalTilt: 63, recurve: 57, petalSpin: 31, stamen: 0.96 } },
+  },
+  {
+    id: 'asiaticLily', name: 'Asiatic Lily',
+    petals: { count: 6, length: 0.50, maxWidth: 0.13, curlExponent: 1.8,
+      edgeRippleAmp: 0.010, edgeRippleFreq: 3.4,
+      color: 0xffb42e, emissive: 0x5a2400,
+      spotCount: 10, spotSize: 0.06, spotStrength: 0.4,
+      grooveStrength: 0.14 },
+    stamens: { count: 18, lengthRatio: 1.15, outwardDeg: 76, hookDeg: 106,
+      hookSharpness: 3.0, color: 0xc8641a, antherColor: 0x8a3c0a,
+      antherSize: 0.010 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -5, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 15, recurve: 10, petalSpin: 13, stamen: 0    },
+      arch:   { petalTilt: 62, recurve: 52, petalSpin: 28, stamen: 0    },
+      full:   { petalTilt: 70, recurve: 68, petalSpin: 36, stamen: 1    },
+      settle: { petalTilt: 67, recurve: 62, petalSpin: 33, stamen: 0.96 } },
+  },
+  {
+    id: 'trumpetLily', name: 'Trumpet Lily',
+    petals: { count: 6, length: 0.62, maxWidth: 0.115, curlExponent: 1.3,
+      edgeRippleAmp: 0.006, edgeRippleFreq: 2.8,
+      color: 0xffe9c8, emissive: 0x33200a, grooveStrength: 0.28 },
+    stamens: { count: 18, lengthRatio: 1.25, outwardDeg: 70, hookDeg: 92,
+      hookSharpness: 3.2, color: 0xc8a838, antherColor: 0x9c7418,
+      antherSize: 0.011 },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -4, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 16, recurve: 6,  petalSpin: 10, stamen: 0    },
+      arch:   { petalTilt: 70, recurve: 30, petalSpin: 22, stamen: 0    },
+      full:   { petalTilt: 82, recurve: 40, petalSpin: 28, stamen: 1    },
+      settle: { petalTilt: 79, recurve: 36, petalSpin: 26, stamen: 0.96 } },
+  },
+  {
+    id: 'peony', name: 'Peony',
+    petals: { count: 10, length: 0.35, maxWidth: 0.13, curlExponent: 1.4,
+      edgeRippleAmp: 0.030, edgeRippleFreq: 5.5,
+      color: 0xff5f96, emissive: 0x330019 },
+    stamens: { count: 22, lengthRatio: 0.9, outwardDeg: 65, hookDeg: 80,
+      hookSharpness: 2.6, color: 0xffe27a, antherColor: 0xffcf5e },
+    bloomPoses: {
+      bud:    { petalTilt: 3,  recurve: -6, petalSpin: 0,  stamen: 0    },
+      lift:   { petalTilt: 18, recurve: 8,  petalSpin: 6,  stamen: 0    },
+      arch:   { petalTilt: 52, recurve: 30, petalSpin: 14, stamen: 0    },
+      full:   { petalTilt: 68, recurve: 48, petalSpin: 20, stamen: 1    },
+      settle: { petalTilt: 65, recurve: 44, petalSpin: 18, stamen: 0.96 } },
+  },
+];
+
+/* -------------------------------------------------------------------------
+   PARAMS — the shared skeleton plus the chosen species' flower settings.
+   ------------------------------------------------------------------------- */
+const PARAMS = {
+  plant: {
+    seed: 7,
+    generations: 4,
+    trunkLength: 2.1,
+    lengthDecay: 0.70,
+    childrenMin: 2,
+    childrenMax: 2,
+    spreadDeg: 42,
+    curveJitter: 0.18,
+    segmentsPerBranch: 10,
+    stemColor: 0x2f9153,
+    stemRadius: 0.050,
+    stemTaperPerGen: 0.78,
+  },
+  flowers: {
+    scale: 1.5,               // overall flower-head size multiplier
+    maxFlowers: 3,            // flower heads on the plant
+    floretsPerHead: 3,        // florets fanned 120° apart on each head
+    floretPedicel: 0.2,       // pedicel length pushing each floret out
+    floretSpreadDeg: 58,      // how wide the florets fan (fixed, always)
+    pedicelRadius: 0.0075,
+    pedicelColor: 0x2c8f4e,
+    stemAlignUpBias: 0.8,     // head axis = stalk direction blended upward
+    faceJitterDeg: 8,
+    bloomStagger: 0,          // 0 = every head blooms together
+  },
+  petals: {
+    count: 6,
+    length: 0.52,
+    maxWidth: 0.095,
+    baseOffset: 0.008,
+    curlExponent: 2.6,
+    lengthSegments: 18,
+    widthSegments: 9,
+    edgeRippleAmp: 0.016,
+    edgeRippleFreq: 4.0,
+    color: 0xd8102a,
+    emissive: 0x550000,
+    spotCount: 0,
+    spotSize: 0.09,
+    spotStrength: 0.45,
+    grooveStrength: 0,
+  },
+  stamens: {
+    count: 18,
+    lengthRatio: 1.3,
+    rootSink: 0.03,
+    polarMinDeg: 18,
+    polarMaxDeg: 60,
+    outwardDeg: 75,
+    hookDeg: 115,
+    hookSharpness: 3.4,
+    lengthVariation: 0.15,
+    radius: 0.005,
+    color: 0xff2233,
+    antherColor: 0xffb060,
+    antherSize: 0.009,
+  },
+  bloomPoses: {
+    bud:    { petalTilt: 3,  recurve: -8,  petalSpin: 0,  stamen: 0    },
+    lift:   { petalTilt: 14, recurve: 10,  petalSpin: 14, stamen: 0    },
+    arch:   { petalTilt: 55, recurve: 70,  petalSpin: 32, stamen: 0    },
+    full:   { petalTilt: 62, recurve: 112, petalSpin: 46, stamen: 1    },
+    settle: { petalTilt: 58, recurve: 102, petalSpin: 42, stamen: 0.96 },
+  },
+  // kept gentle: the glow should kiss the anthers, not fog the whole page
+  glow: { strength: 0.55, radius: 0.32, threshold: 0.4 },
+};
+
+/* ---- pick this load's flower, and a fresh plant shape with it ---- */
+const species = SPECIES[Math.floor(Math.random() * SPECIES.length)];
+PARAMS.plant.seed = 1 + Math.floor(Math.random() * 997);
+Object.assign(PARAMS.petals, species.petals);
+Object.assign(PARAMS.stamens, species.stamens);
+for (const stage of ['bud', 'lift', 'arch', 'full', 'settle']) {
+  Object.assign(PARAMS.bloomPoses[stage], species.bloomPoses[stage]);
+}
+
+/* how much the flower heads are allowed to spread; the camera fit uses this
+   so a fully open bloom never runs off the screen */
+const BLOOM_SPREAD = 1.35;
+
+/* -------------------------------------------------------------------------
+   seeded random — one plant shape per seed, same shape every reload of a seed
+   ------------------------------------------------------------------------- */
+function makeSeededRandom(seed) {
+  let state = seed >>> 0;
+  return function seededRandom() {
+    state |= 0;
+    state = (state + 0x6D2B79F5) | 0;
+    let temp = Math.imul(state ^ (state >>> 15), 1 | state);
+    temp = (temp + Math.imul(temp ^ (temp >>> 7), 61 | temp)) ^ temp;
+    return ((temp ^ (temp >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/* -------------------------------------------------------------------------
+   BLOOM TIMELINE — pose keyframes scrubbed by .seek() as bloom goes 0 -> 1
+   ------------------------------------------------------------------------- */
+const BLOOM_TIMELINE_MS = 1800;
+const poses = PARAMS.bloomPoses;
+const bloomState = { ...poses.bud };
+
+function buildBloomTimeline() {
+  return anime.timeline({ autoplay: false, easing: 'easeInOutQuad' })
+    .add({ targets: bloomState,
+           petalTilt: poses.lift.petalTilt, recurve: poses.lift.recurve,
+           petalSpin: poses.lift.petalSpin,
+           duration: 350, easing: 'easeInOutCubic' }, 150)
+    .add({ targets: bloomState,
+           petalTilt: poses.arch.petalTilt, recurve: poses.arch.recurve,
+           petalSpin: poses.arch.petalSpin,
+           duration: 300, easing: 'easeInOutQuad' }, 500)
+    .add({ targets: bloomState,
+           petalTilt: poses.full.petalTilt, recurve: poses.full.recurve,
+           petalSpin: poses.full.petalSpin,
+           duration: 400, easing: 'easeOutCubic' }, 800)
+    .add({ targets: bloomState, stamen: poses.full.stamen,
+           duration: 920, easing: 'easeOutCubic' }, 430)
+    .add({ targets: bloomState,
+           petalTilt: poses.settle.petalTilt, recurve: poses.settle.recurve,
+           petalSpin: poses.settle.petalSpin, stamen: poses.settle.stamen,
+           duration: 350, easing: 'easeInOutSine' }, 1350)
+    .add({ targets: bloomState, stamen: poses.settle.stamen, duration: 100 }, 1700);
+}
+const bloomTimeline = buildBloomTimeline();
+
+/* -------------------------------------------------------------------------
+   RENDERER / SCENE — transparent canvas so the page shows through
+   ------------------------------------------------------------------------- */
+const bed = document.getElementById('flowerBed');
+const stage = bed ? bed.querySelector('.stage') : null;
+const closingLine = bed ? bed.querySelector('footer') : null;
+const canvas = document.getElementById('flowerCanvas');
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+
+const scene = new THREE.Scene();
+scene.background = null;              // let the page's paper show through
+
+const CAM_FOV = 40;
+const CAM_DIST = 8;
+const cam = new THREE.PerspectiveCamera(CAM_FOV, 1, 0.1, 100);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+const keyLight = new THREE.DirectionalLight(0xffe6d5, 1.05);
+keyLight.position.set(2.5, 4, 5);
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x9fb6ff, 0.5);
+rimLight.position.set(-3, 1.5, -4);
+scene.add(rimLight);
+
+/* selective bloom: the glow pass renders the plant alone, then gets added
+   back over the normal render. Alpha is carried through so the halo shows
+   without painting an opaque box over the page. */
+const bloomTarget = new THREE.WebGLRenderTarget(2, 2, { type: THREE.HalfFloatType });
+const bloomComposer = new EffectComposer(renderer, bloomTarget);
+bloomComposer.renderToScreen = false;
+bloomComposer.addPass(new RenderPass(scene, cam));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(2, 2),
+  PARAMS.glow.strength, PARAMS.glow.radius, PARAMS.glow.threshold);
+bloomComposer.addPass(bloomPass);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, cam));
+const bloomCompositePass = new ShaderPass(new THREE.ShaderMaterial({
+  uniforms: {
+    baseTexture: { value: null },
+    bloomTexture: { value: bloomComposer.renderTarget2.texture },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }`,
+  fragmentShader: `
+    uniform sampler2D baseTexture;
+    uniform sampler2D bloomTexture;
+    varying vec2 vUv;
+    void main() {
+      vec4 base = texture2D(baseTexture, vUv);
+      vec3 bloom = texture2D(bloomTexture, vUv).rgb;
+      // the halo only shows where the plant itself is, so an empty sky
+      // stays fully transparent instead of turning into a grey box
+      float halo = max(max(bloom.r, bloom.g), bloom.b) * 0.55;
+      float alpha = clamp(base.a + halo, 0.0, 1.0);
+      gl_FragColor = vec4(base.rgb + bloom, alpha);
+    }`,
+}), 'baseTexture');
+bloomCompositePass.needsSwap = true;
+composer.addPass(bloomCompositePass);
+composer.addPass(new OutputPass());
+
+/* -------------------------------------------------------------------------
+   PLANT — recursive branching skeleton, flower heads on the final tips
+   ------------------------------------------------------------------------- */
+const plantGroup = new THREE.Group();
+scene.add(plantGroup);
+
+const stemMaterial = new THREE.MeshStandardMaterial({
+  color: PARAMS.plant.stemColor, roughness: 0.75, metalness: 0,
+});
+
+const branches = [];
+const flowerAnchors = [];
+
+(function buildPlant() {
+  const randomFn = makeSeededRandom(PARAMS.plant.seed);
+  const conf = PARAMS.plant;
+
+  function growBranch(startPoint, direction, length, generation, parentIndex,
+                      subtreeIndex) {
+    const points = [startPoint.clone()];
+    const currentPoint = startPoint.clone();
+    const currentDir = direction.clone().normalize();
+    const stepLength = length / conf.segmentsPerBranch;
+
+    for (let step = 0; step < conf.segmentsPerBranch; step++) {
+      const jitter = new THREE.Vector3(
+        randomFn() - 0.5, (randomFn() - 0.5) * 0.4, randomFn() - 0.5)
+        .multiplyScalar(conf.curveJitter * stepLength);
+      currentDir.add(jitter.multiplyScalar(0.6)).normalize();
+      currentDir.y += 0.06 * (1 - generation / conf.generations);
+      currentDir.normalize();
+      currentPoint.addScaledVector(currentDir, stepLength);
+      points.push(currentPoint.clone());
+    }
+
+    const curve = new THREE.CatmullRomCurve3(points);
+    const radius = conf.stemRadius *
+      Math.pow(conf.stemTaperPerGen, generation);
+    const geometry = new THREE.TubeGeometry(
+      curve, conf.segmentsPerBranch * 2, radius, 6, false);
+    const stemMesh = new THREE.Mesh(geometry, stemMaterial);
+    plantGroup.add(stemMesh);
+
+    const branchIndex = branches.length;
+    branches.push({ stemMesh, generation, indexCount: geometry.index.count,
+                    parentIndex });
+
+    const endPoint = points[points.length - 1];
+    const endDir = currentDir.clone();
+
+    if (generation < conf.generations - 1) {
+      const childCount = generation === 0 ? PARAMS.flowers.maxFlowers :
+        conf.childrenMin +
+        Math.floor(randomFn() * (conf.childrenMax - conf.childrenMin + 1));
+      const ringPhase = randomFn() * Math.PI * 2;
+      for (let childIndex = 0; childIndex < childCount; childIndex++) {
+        const azimuth = ringPhase +
+          (childIndex / childCount) * Math.PI * 2 + (randomFn() - 0.5) * 0.3;
+        const spread = THREE.MathUtils.degToRad(
+          conf.spreadDeg * (0.6 + randomFn() * 0.8));
+        const perpAxis = new THREE.Vector3(
+          Math.cos(azimuth), 0, Math.sin(azimuth))
+          .cross(endDir).normalize();
+        const childDir = endDir.clone().applyAxisAngle(perpAxis, spread);
+        growBranch(endPoint, childDir, length * conf.lengthDecay,
+                   generation + 1, branchIndex,
+                   generation === 0 ? childIndex : subtreeIndex);
+      }
+    } else {
+      const faceQuat = new THREE.Quaternion().setFromUnitVectors(
+        new THREE.Vector3(0, 1, 0), endDir);
+      const jitterQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+        THREE.MathUtils.degToRad(
+          (randomFn() - 0.5) * 2 * PARAMS.flowers.faceJitterDeg),
+        randomFn() * Math.PI * 2,
+        THREE.MathUtils.degToRad(
+          (randomFn() - 0.5) * 2 * PARAMS.flowers.faceJitterDeg)));
+      faceQuat.multiply(jitterQuat);
+      flowerAnchors.push({ position: endPoint.clone(), quaternion: faceQuat,
+                           generation, tipBranchIndex: branchIndex });
+    }
+  }
+
+  growBranch(new THREE.Vector3(0, -1.8, 0), new THREE.Vector3(0, 1, 0),
+             conf.trunkLength, 0, -1, -1);
+})();
+
+/* -------------------------------------------------------------------------
+   PETAL GEOMETRY — one per flower head, rebuilt each frame from that head's
+   recurve: the blade spine curls progressively from base to tip
+   ------------------------------------------------------------------------- */
+function createPetalGeometry(seed) {
+  const conf = PARAMS.petals;
+  const geometry = new THREE.BufferGeometry();
+  const vertexCount = (conf.lengthSegments + 1) * (conf.widthSegments + 1);
+  geometry.setAttribute('position',
+    new THREE.BufferAttribute(new Float32Array(vertexCount * 3), 3));
+
+  // vertex colours multiply the material colour: pale throat, midrib
+  // highlight, deeper edges/tip, faint veins, a touch of mottle
+  const shadeColors = new Float32Array(vertexCount * 3);
+
+  // per-species freckles (stargazer / asiatic), seeded per head
+  const spots = [];
+  if (conf.spotCount > 0) {
+    const spotRandom = makeSeededRandom((seed || 0) + 7919);
+    for (let i = 0; i < conf.spotCount; i++) {
+      spots.push({
+        t: 0.08 + spotRandom() * 0.6,
+        w: (spotRandom() - 0.5) * 0.72,
+        size: conf.spotSize * (0.55 + spotRandom() * 0.8),
+      });
+    }
+  }
+
+  let colorIndex = 0;
+  for (let row = 0; row <= conf.lengthSegments; row++) {
+    const lengthT = row / conf.lengthSegments;
+    for (let col = 0; col <= conf.widthSegments; col++) {
+      const widthT = col / conf.widthSegments - 0.5;
+      const edgeness = Math.abs(widthT) * 2;
+      const tipShade = 1 - 0.55 * Math.pow(lengthT, 2.2);
+      const throat = Math.pow(Math.max(0, 1 - lengthT / 0.22), 1.6);
+      const rib = Math.exp(-Math.pow(widthT / 0.13, 2));
+      const veins = 1 + 0.10 * Math.sin(widthT * Math.PI * 6)
+        * Math.sin(Math.min(1, lengthT * 1.2) * Math.PI);
+      const mottle = 1 + (((Math.sin(lengthT * 91.7 + widthT * 47.3)
+        * 43758.5453) % 1 + 1) % 1 - 0.5) * 0.12;
+      let shadeR = tipShade * (1 - 0.18 * edgeness)
+        * (1 + 0.15 * rib + 0.15 * throat) * veins * mottle;
+      let shadeG = Math.pow(tipShade, 1.3) * (1 - 0.60 * edgeness)
+        * (1 + 2.4 * rib + 5.0 * throat) * veins * mottle;
+      let shadeB = Math.pow(tipShade, 1.15) * (1 - 0.45 * edgeness)
+        * (1 + 1.4 * rib + 2.5 * throat) * veins * mottle;
+
+      if (conf.grooveStrength > 0) {
+        const groove = conf.grooveStrength * rib
+          * (0.4 + 0.6 * Math.pow(1 - lengthT, 1.5));
+        shadeR += groove; shadeG += groove * 1.05; shadeB += groove * 0.55;
+      }
+      for (const spot of spots) {
+        const dt = (lengthT - spot.t) / spot.size;
+        const dw = (widthT - spot.w) / (spot.size * 0.5);
+        const dist2 = dt * dt + dw * dw;
+        if (dist2 < 1) {
+          const darken = conf.spotStrength * (1 - Math.sqrt(dist2));
+          shadeR *= 1 - darken; shadeG *= 1 - darken; shadeB *= 1 - darken;
+        }
+      }
+      shadeColors[colorIndex++] = shadeR;
+      shadeColors[colorIndex++] = shadeG;
+      shadeColors[colorIndex++] = shadeB;
+    }
+  }
+  geometry.setAttribute('color', new THREE.BufferAttribute(shadeColors, 3));
+
+  const indices = [];
+  for (let row = 0; row < conf.lengthSegments; row++) {
+    for (let col = 0; col < conf.widthSegments; col++) {
+      const cornerA = row * (conf.widthSegments + 1) + col;
+      const cornerB = (row + 1) * (conf.widthSegments + 1) + col;
+      indices.push(cornerA, cornerB, cornerA + 1,
+                   cornerB, cornerB + 1, cornerA + 1);
+    }
+  }
+  geometry.setIndex(indices);
+  return geometry;
+}
+
+function updatePetalGeometry(petalGeometry, recurveDeg) {
+  const conf = PARAMS.petals;
+  const positions = petalGeometry.attributes.position.array;
+  const recurveRad = THREE.MathUtils.degToRad(recurveDeg);
+  const stepLength = conf.length / conf.lengthSegments;
+
+  let writeIndex = 0;
+  let spineY = 0, spineZ = 0;
+  for (let row = 0; row <= conf.lengthSegments; row++) {
+    const lengthT = row / conf.lengthSegments;
+    const widthProfile = Math.sin(Math.PI * Math.min(1, lengthT * 1.08)) ** 0.85;
+    const halfWidth = conf.maxWidth * widthProfile * 0.5;
+    for (let col = 0; col <= conf.widthSegments; col++) {
+      const widthT = col / conf.widthSegments - 0.5;
+      const edgeness = Math.abs(widthT) * 2;
+      const ripple = conf.edgeRippleAmp * edgeness *
+        Math.sin(lengthT * conf.edgeRippleFreq * Math.PI * 2);
+      positions[writeIndex++] = widthT * 2 * halfWidth;
+      positions[writeIndex++] = spineY;
+      positions[writeIndex++] = spineZ + ripple - edgeness * 0.006 * widthProfile;
+    }
+    // curl builds toward the tip: straight base, C-curled end
+    const spineAngle = recurveRad * Math.pow(lengthT, conf.curlExponent);
+    spineY += Math.cos(spineAngle) * stepLength;
+    spineZ += Math.sin(spineAngle) * stepLength;
+  }
+  petalGeometry.attributes.position.needsUpdate = true;
+  petalGeometry.computeVertexNormals();
+}
+
+/* -------------------------------------------------------------------------
+   STAMEN GEOMETRY — one shared filament shape per species; each stamen
+   lengthens by scaling its own mesh
+   ------------------------------------------------------------------------- */
+function buildStamenGeometry() {
+  const conf = PARAMS.stamens;
+  const filamentLength = PARAMS.petals.length * conf.lengthRatio;
+  const stepCount = 16;
+  const stepLength = filamentLength / stepCount;
+  const outwardRad = THREE.MathUtils.degToRad(conf.outwardDeg);
+  const hookRad = THREE.MathUtils.degToRad(conf.hookDeg);
+  const pathPoints = [new THREE.Vector3(0, 0, 0)];
+  const walker = new THREE.Vector3(0, 0, 0);
+
+  for (let step = 1; step <= stepCount; step++) {
+    const pathT = step / stepCount;
+    const pathAngle = outwardRad * pathT -
+      hookRad * Math.pow(pathT, conf.hookSharpness);
+    walker.y += Math.cos(pathAngle) * stepLength;
+    walker.z += Math.sin(pathAngle) * stepLength;
+    pathPoints.push(walker.clone());
+  }
+  const curve = new THREE.CatmullRomCurve3(pathPoints);
+  const tipPosition = pathPoints[pathPoints.length - 1];
+  const beforeTip = pathPoints[pathPoints.length - 2];
+  const tipTangent = tipPosition.clone().sub(beforeTip);
+  return {
+    geometry: new THREE.TubeGeometry(curve, 24, conf.radius, 5, false),
+    tipPosition: tipPosition.clone(),
+    tipAngle: Math.atan2(tipTangent.z, tipTangent.y),
+  };
+}
+
+/* -------------------------------------------------------------------------
+   FLOWER HEADS — each head is an umbel: florets fanned around the head
+   centre, each carrying petals + its own ring of stamens
+   ------------------------------------------------------------------------- */
+const petalMaterial = new THREE.MeshStandardMaterial({
+  color: PARAMS.petals.color,
+  emissive: PARAMS.petals.emissive,
+  side: THREE.DoubleSide,
+  roughness: 0.55,
+  metalness: 0,
+  vertexColors: true,
+});
+const stamenMaterial = new THREE.MeshBasicMaterial({ color: PARAMS.stamens.color });
+const antherMaterial = new THREE.MeshBasicMaterial({ color: PARAMS.stamens.antherColor });
+const stamenFullBuild = buildStamenGeometry();
+
+const pedicelMaterial = new THREE.MeshBasicMaterial({
+  color: PARAMS.flowers.pedicelColor });
+const pedicelGeometry = new THREE.CylinderGeometry(
+  PARAMS.flowers.pedicelRadius, PARAMS.flowers.pedicelRadius * 1.5,
+  PARAMS.flowers.floretPedicel, 5);
+
+// choose the head positions by maximising their real 3D separation, so the
+// flowers form a triangle in plan view and one sits lower than the others
+const selectedAnchors = [];
+{
+  const headTotal = Math.min(PARAMS.flowers.maxFlowers, flowerAnchors.length);
+  const heightWeight = 2.0;
+  const separation = (a, b) => {
+    const dx = a.position.x - b.position.x;
+    const dz = a.position.z - b.position.z;
+    const dy = (a.position.y - b.position.y) * heightWeight;
+    return Math.sqrt(dx * dx + dy * dy + dz * dz);
+  };
+  let firstAnchor = flowerAnchors[0];
+  let bestRadius = -1;
+  for (const anchor of flowerAnchors) {
+    const radius = Math.hypot(anchor.position.x, anchor.position.z);
+    if (radius > bestRadius) { bestRadius = radius; firstAnchor = anchor; }
+  }
+  selectedAnchors.push(firstAnchor);
+  while (selectedAnchors.length < headTotal) {
+    let bestAnchor = null;
+    let bestSeparation = -1;
+    for (const anchor of flowerAnchors) {
+      if (selectedAnchors.includes(anchor)) continue;
+      let minSeparation = Infinity;
+      for (const chosen of selectedAnchors) {
+        minSeparation = Math.min(minSeparation, separation(anchor, chosen));
+      }
+      if (minSeparation > bestSeparation) {
+        bestSeparation = minSeparation;
+        bestAnchor = anchor;
+      }
+    }
+    selectedAnchors.push(bestAnchor);
+  }
+}
+
+// keep only the stalks that lead to a chosen flower
+{
+  const keptBranchIndices = new Set();
+  for (const anchor of selectedAnchors) {
+    let walkIndex = anchor.tipBranchIndex;
+    while (walkIndex >= 0) {
+      keptBranchIndices.add(walkIndex);
+      walkIndex = branches[walkIndex].parentIndex;
+    }
+  }
+  for (let i = branches.length - 1; i >= 0; i--) {
+    if (!keptBranchIndices.has(i)) {
+      plantGroup.remove(branches[i].stemMesh);
+      branches[i].stemMesh.geometry.dispose();
+      branches.splice(i, 1);
+    }
+  }
+}
+
+const flowerHeads = [];
+const headRandom = makeSeededRandom(PARAMS.plant.seed + 99);
+const stamenRootScratch = new THREE.Vector3();
+
+for (const anchor of selectedAnchors) {
+  const headGroup = new THREE.Group();
+  headGroup.position.copy(anchor.position);
+  // point the head along its stalk, blended toward vertical, so the floret
+  // triangle fans symmetrically around the stem tip
+  const branchDir = new THREE.Vector3(0, 1, 0).applyQuaternion(anchor.quaternion);
+  const faceDir = branchDir
+    .add(new THREE.Vector3(0, PARAMS.flowers.stemAlignUpBias, 0)).normalize();
+  headGroup.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), faceDir);
+  headGroup.scale.setScalar(0.0001);
+  plantGroup.add(headGroup);
+
+  const petalGeometry = createPetalGeometry(anchor.tipBranchIndex);
+  const petalPivots = [];
+  const stamenEntries = [];
+  const floretGroups = [];
+
+  const floretCount = PARAMS.flowers.floretsPerHead;
+  // orient each head's floret ring as a clean triangle from the camera
+  const localCameraDir = new THREE.Vector3(0, 0, 1)
+    .applyQuaternion(headGroup.quaternion.clone().invert());
+  const floretPhase = Math.atan2(localCameraDir.x, localCameraDir.z);
+
+  for (let floretIndex = 0; floretIndex < floretCount; floretIndex++) {
+    const floretPivot = new THREE.Group();
+    floretPivot.rotation.order = 'YXZ';
+    floretPivot.rotation.y = floretCount === 1 ? 0 : floretPhase +
+      (floretIndex / floretCount) * Math.PI * 2 + (headRandom() - 0.5) * 0.06;
+    const tiltJitter = 0.92 + headRandom() * 0.16;
+    floretPivot.rotation.x =
+      THREE.MathUtils.degToRad(PARAMS.flowers.floretSpreadDeg) * tiltJitter;
+    headGroup.add(floretPivot);
+
+    const floretGroup = new THREE.Group();
+    floretGroup.position.y = PARAMS.flowers.floretPedicel;
+    floretPivot.add(floretGroup);
+    floretGroups.push(floretGroup);
+
+    const pedicel = new THREE.Mesh(pedicelGeometry, pedicelMaterial);
+    pedicel.position.y = PARAMS.flowers.floretPedicel / 2;
+    floretPivot.add(pedicel);
+
+    for (let petalIndex = 0; petalIndex < PARAMS.petals.count; petalIndex++) {
+      const petalPivot = new THREE.Group();
+      petalPivot.rotation.order = 'YXZ';
+      petalPivot.userData.baseAzimuth =
+        (petalIndex / PARAMS.petals.count) * Math.PI * 2;
+      petalPivot.rotation.y = petalPivot.userData.baseAzimuth;
+      const petalMesh = new THREE.Mesh(petalGeometry, petalMaterial);
+      petalMesh.position.y = PARAMS.petals.baseOffset;
+      petalPivot.add(petalMesh);
+      floretGroup.add(petalPivot);
+      petalPivots.push(petalPivot);
+    }
+  }
+
+  const stamensPerFloret = Math.max(1,
+    Math.floor(PARAMS.stamens.count / floretCount));
+  for (let stamenIndex = 0; stamenIndex < PARAMS.stamens.count; stamenIndex++) {
+    const floretIndex = stamenIndex % floretCount;
+    const withinIndex = Math.floor(stamenIndex / floretCount);
+    const stamenPivot = new THREE.Group();
+    stamenPivot.rotation.order = 'YXZ';
+    stamenPivot.rotation.y = (withinIndex / stamensPerFloret) * Math.PI * 2 +
+      headRandom() * 0.9;
+    const tiltT = Math.min(1, withinIndex / Math.max(1, stamensPerFloret - 1));
+    const finalTiltRad = THREE.MathUtils.degToRad(
+      PARAMS.stamens.polarMinDeg +
+      (PARAMS.stamens.polarMaxDeg - PARAMS.stamens.polarMinDeg) * tiltT +
+      (headRandom() - 0.5) * 8);
+    stamenPivot.rotation.x = finalTiltRad * 0.15;   // bundled up in the bud
+
+    const filamentMesh = new THREE.Mesh(stamenFullBuild.geometry, stamenMaterial);
+    const antherMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(PARAMS.stamens.antherSize, 6, 5), antherMaterial);
+    stamenPivot.add(filamentMesh);
+    stamenPivot.add(antherMesh);
+    floretGroups[floretIndex].add(stamenPivot);
+
+    stamenEntries.push({
+      pivot: stamenPivot,
+      filamentMesh,
+      antherMesh,
+      lengthScale: 1 - PARAMS.stamens.lengthVariation / 2 +
+        headRandom() * PARAMS.stamens.lengthVariation,
+      growDelay: headRandom() * 0.3,
+      finalTiltRad,
+    });
+  }
+
+  flowerHeads.push({ headGroup, petalPivots, stamenEntries, petalGeometry,
+                     anchor, orderIndex: 0 });
+}
+
+// deterministic shuffle: the order the heads take their turn blooming
+{
+  const order = flowerHeads.map((head, index) => index);
+  for (let i = order.length - 1; i > 0; i--) {
+    const j = Math.floor(headRandom() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  order.forEach((headIndex, position) => {
+    flowerHeads[headIndex].orderIndex = position;
+  });
+}
+
+/* -------------------------------------------------------------------------
+   FRAMING — fit the whole plant (plus room for a full bloom) into the frame
+   ------------------------------------------------------------------------- */
+const plantBounds = new THREE.Box3().setFromObject(plantGroup);
+const FOCUS_Y = 0;
+
+function fitPlant() {
+  if (!plantBounds || plantBounds.isEmpty()) return;
+  const size = new THREE.Vector3();
+  const center = new THREE.Vector3();
+  plantBounds.getSize(size);
+  plantBounds.getCenter(center);
+
+  const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(CAM_FOV / 2)) * CAM_DIST;
+  const visibleWidth = visibleHeight * cam.aspect;
+
+  // the blooms open outward and upward past the stem tips, so the plant is
+  // budgeted at more than its bare stem height
+  const extentY = Math.max(0.001, size.y * BLOOM_SPREAD);
+  const extentX = Math.max(0.001, Math.max(size.x, size.z) * BLOOM_SPREAD);
+
+  const bottomMargin = 0.06;    // a little floor under the base of the stem
+  const topMargin = 0.05;
+  const sideMargin = 0.10;
+  const fit = Math.min(
+    visibleHeight * (1 - bottomMargin - topMargin) / extentY,
+    visibleWidth * (1 - sideMargin * 2) / extentX);
+
+  plantGroup.scale.setScalar(fit);
+  // root the plant near the bottom of the frame and let it grow up from there
+  const frameBottom = FOCUS_Y - visibleHeight / 2;
+  plantGroup.position.set(
+    -center.x * fit,
+    frameBottom + visibleHeight * bottomMargin - plantBounds.min.y * fit,
+    -center.z * fit);
+}
+
+/* -------------------------------------------------------------------------
+   GROW + BLOOM
+   ------------------------------------------------------------------------- */
+function applyGrow(growAmount) {
+  const visibleGenerations = growAmount * PARAMS.plant.generations;
+
+  for (const branch of branches) {
+    const localT = THREE.MathUtils.clamp(
+      visibleGenerations - branch.generation, 0, 1);
+    branch.stemMesh.visible = localT > 0.001;
+    const quadCount = branch.indexCount / 6;
+    branch.stemMesh.geometry.setDrawRange(0, Math.ceil(localT * quadCount) * 6);
+  }
+
+  for (const head of flowerHeads) {
+    // the flower scales in over the last 40% of its own stalk's growth
+    const tipProgress = visibleGenerations - (head.anchor.generation + 0.6);
+    const localT = THREE.MathUtils.clamp(tipProgress / 0.4, 0, 1);
+    head.headGroup.scale.setScalar(
+      Math.max(0.0001, localT * PARAMS.flowers.scale));
+  }
+}
+
+function staggeredLocalBloom(globalBloom, orderIndex, headCount) {
+  const stagger = PARAMS.flowers.bloomStagger;
+  const spread = 1 + stagger * (headCount - 1);
+  return THREE.MathUtils.clamp(
+    globalBloom * spread - stagger * orderIndex, 0, 1);
+}
+
+function applyBloom(globalBloom) {
+  const headCount = flowerHeads.length;
+
+  for (const head of flowerHeads) {
+    const localBloom = staggeredLocalBloom(
+      globalBloom, head.orderIndex, headCount);
+    bloomTimeline.seek(localBloom * BLOOM_TIMELINE_MS);   // fills bloomState
+
+    updatePetalGeometry(head.petalGeometry, bloomState.recurve);
+
+    const petalTiltRad = THREE.MathUtils.degToRad(bloomState.petalTilt);
+    const petalSpinRad = THREE.MathUtils.degToRad(bloomState.petalSpin);
+    for (const petalPivot of head.petalPivots) {
+      petalPivot.rotation.x = petalTiltRad;
+      petalPivot.rotation.y = petalPivot.userData.baseAzimuth + petalSpinRad;
+    }
+
+    for (const stamen of head.stamenEntries) {
+      const delayedT = (bloomState.stamen - stamen.growDelay) /
+        (1 - stamen.growDelay);
+      const growT = THREE.MathUtils.clamp(delayedT, 0, 1);
+      const easedT = growT * growT * (3 - 2 * growT);            // smoothstep
+      const scaleNow = Math.max(stamen.lengthScale * easedT, 0.0001);
+
+      // rises out of the bud, then falls outward into its final dome
+      stamen.pivot.rotation.x =
+        stamen.finalTiltRad * (0.15 + 0.85 * Math.pow(easedT, 1.25));
+      stamenRootScratch.set(0, 1, 0)
+        .applyEuler(stamen.pivot.rotation)
+        .multiplyScalar(-PARAMS.stamens.rootSink);
+      stamen.pivot.position.copy(stamenRootScratch);
+
+      stamen.filamentMesh.scale.setScalar(scaleNow);
+      stamen.filamentMesh.visible = easedT > 0.02;
+      stamen.antherMesh.visible = easedT > 0.08;
+      stamen.antherMesh.position.copy(stamenFullBuild.tipPosition)
+        .multiplyScalar(scaleNow);
+      stamen.antherMesh.rotation.x = stamenFullBuild.tipAngle;
+      const antherGrow = Math.min(1, easedT * 1.6);
+      stamen.antherMesh.scale.set(
+        0.7 * antherGrow, 2.4 * antherGrow, 0.7 * antherGrow);
+    }
+  }
+}
+
+/* -------------------------------------------------------------------------
+   SCROLL -> GROWTH
+   #flowerBed is the runway at the end of the page and the flower's stage is
+   pinned to the screen inside it. Two things are read from the runway:
+     · fade  — how far the runway has risen into view, so the night garden
+               arrives smoothly instead of popping in over the footer
+     · growth — how far down the runway we have scrolled, 0 when its top
+               reaches the top of the screen and 1 at the very end of the
+               page. Halfway down the flower is halfway grown.
+   ------------------------------------------------------------------------- */
+function scrollState() {
+  if (!bed) return { fade: 0, progress: 0, onScreen: false };
+  const rect = bed.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+
+  const fade = THREE.MathUtils.clamp(
+    (viewportHeight - rect.top) / viewportHeight, 0, 1);
+  // the runway's top is 0, the end of the page is rect.height - viewport
+  const travel = Math.max(1, rect.height - viewportHeight);
+  const progress = THREE.MathUtils.clamp(-rect.top / travel, 0, 1);
+
+  return {
+    fade,
+    progress,
+    onScreen: rect.bottom > 0 && rect.top < viewportHeight,
+  };
+}
+
+function resize() {
+  const width = Math.max(2, window.innerWidth);
+  const height = Math.max(2, window.innerHeight);
+  renderer.setSize(width, height, false);   // CSS already sets the box size
+  composer.setSize(width, height);
+  bloomComposer.setSize(width, height);
+  cam.aspect = width / height;
+  cam.updateProjectionMatrix();
+  fitPlant();
+}
+
+/* -------------------------------------------------------------------------
+   MAIN LOOP
+   ------------------------------------------------------------------------- */
+const clock = new THREE.Clock();
+let smoothed = 0;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const deltaSeconds = Math.min(clock.getDelta(), 0.5);
+  const elapsed = clock.getElapsedTime();
+
+  const state = scrollState();
+  // ease toward the scroll position so fast flicks still read as growth
+  smoothed += (state.progress - smoothed) * (1 - Math.exp(-deltaSeconds / 0.18));
+
+  // the plant grows first, then the flowers open over the last stretch, so
+  // the very bottom of the page is always a finished bloom
+  const grow = THREE.MathUtils.clamp(smoothed / 0.9, 0, 1);
+  const bloom = THREE.MathUtils.clamp((smoothed - 0.5) / 0.5, 0, 1);
+
+  if (stage) stage.style.opacity = state.fade.toFixed(3);
+  // the closing line arrives with the last of the bloom
+  if (closingLine) {
+    closingLine.style.opacity =
+      THREE.MathUtils.clamp((smoothed - 0.72) / 0.28, 0, 1).toFixed(3);
+  }
+
+  applyGrow(grow);
+  applyBloom(bloom);
+
+  // slow turntable so the flower reads in the round, plus a soft idle sway
+  const orbit = elapsed * 0.1;
+  cam.position.set(
+    Math.sin(orbit) * CAM_DIST,
+    FOCUS_Y + Math.sin(elapsed * 0.25) * 0.06,
+    Math.cos(orbit) * CAM_DIST);
+  cam.lookAt(0, FOCUS_Y, 0);
+  plantGroup.rotation.z = Math.sin(elapsed * 0.3) * 0.015;
+
+  // nothing on screen yet? skip the draw entirely
+  if (!state.onScreen) return;
+
+  bloomComposer.render();
+  composer.render();
+}
+
+window.addEventListener('resize', resize);
+resize();
+animate();
+  </script>
+
 
 </body>
 </html>
