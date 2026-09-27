@@ -52,8 +52,8 @@
     padding: 60px 0 90px 60px;
     color:#f2f0ea;
     pointer-events:none;
+    transition: color 0.35s ease;
   }
-  nav.side.dark{ color:var(--ink); }
   nav.side a{
     display:block; text-decoration:none; font-family:var(--sans);
     font-size:12px; letter-spacing:0.12em; margin-bottom:16px;
@@ -65,6 +65,7 @@
     position:fixed; top:32px; right:60px; z-index:40;
     font-family:var(--sans); font-size:12px; letter-spacing:0.1em;
     display:flex; gap:8px; color:#f2f0ea;
+    transition: color 0.35s ease;
   }
   .lang-toggle button{
     background:none; border:none; cursor:pointer; padding:0;
@@ -82,11 +83,72 @@
     position:fixed; top:70px; left:60px; z-index:30; color:#f2f0ea;
     font-family:var(--serif-en); font-style:italic; font-weight:400;
     font-size:26px; line-height:1.3;
+    transition: color 0.35s ease;
   }
 
   .kv-onair{
     position:fixed; bottom:40px; left:60px; z-index:30; color:#f2f0ea;
     font-family:var(--serif-en); font-size:15px; letter-spacing:0.05em;
+    transition: color 0.35s ease;
+  }
+
+  /* These four are pinned over the page for the whole scroll, so they can't
+     just be one colour: cream against the dark hero and the night-time
+     flower space, ink once the paper sections are behind them. JS toggles
+     .dark on each one, probed separately, so the labels up top and the
+     links down at the bottom can disagree while you're mid-scroll. */
+  nav.side.dark,
+  .kv-title.dark,
+  .kv-onair.dark,
+  .lang-toggle.dark,
+  .manual-toggle.dark{ color:var(--ink); }
+
+  /* ---------------- MANUAL MODE ----------------
+     A deliberately quiet toggle in the bottom corner, mirroring "Bulacan"
+     on the other side. It asks for the camera only when it is clicked, and
+     then hands the flower over to your hands: left pinch opens the plant,
+     right pinch opens the flowers. A small, self-contained take on
+     index_flower.html — same engine, same gesture, none of its extra panels. */
+  .manual-toggle{
+    position:fixed; bottom:40px; right:60px; z-index:40;
+    background:none; border:0; padding:0; cursor:pointer;
+    font-family:var(--sans); font-size:12px; letter-spacing:0.1em;
+    color:#f2f0ea; opacity:0.5;
+    transition: color 0.35s ease, opacity 0.25s ease;
+  }
+  .manual-toggle:hover{ opacity:1; }
+
+  #manualPanel{
+    position:fixed; right:60px; bottom:88px; z-index:20;
+    width:min(300px, 34vw);
+    display:none;
+    font-family:var(--sans);
+  }
+  #manualPanel.on{ display:block; }
+  #manualPanel .cam{
+    position:relative; border-radius:8px; overflow:hidden; background:#000;
+  }
+  /* the video stays in flow so the panel takes the camera's own aspect ratio;
+     the overlay canvas is stretched over exactly the same box, so the hand
+     dots land where your hand actually is */
+  #manualPanel video{
+    display:block; width:100%; height:auto;
+    transform:scaleX(-1);              /* mirrored selfie view */
+  }
+  #manualPanel canvas{
+    position:absolute; inset:0;
+    width:100%; height:100%; display:block;
+    pointer-events:none;
+  }
+  #manualPanel .hint{
+    margin-top:10px; text-align:right;
+    font-size:10px; letter-spacing:0.1em; line-height:1.7;
+    color: rgba(239,236,230,0.5);
+  }
+
+  @media (max-width: 760px){
+    .manual-toggle{ bottom:34px; right:24px; }
+    #manualPanel{ right:24px; bottom:76px; width:min(260px, 62vw); }
   }
 
   .kv-jp-caption{
@@ -203,6 +265,69 @@
   #page{ opacity:0; transition: opacity 1s ease; }
   #page.show{ opacity:1; }
 
+  /* ---------------- CONTACT ----------------
+     Laid out like a broadcast info panel: a small-caps label column on the
+     left, and ruled rows of platform -> handle on the right. z-index stays
+     below the flower bed so the night still falls over it on the way down. */
+  #contact{
+    position:relative; z-index:5;
+    background:var(--paper);
+    padding: 16vh 6vw 18vh;
+  }
+  #contact .eyebrow{
+    text-align:center; text-transform:uppercase;
+    font-size:12px; letter-spacing:0.2em; color:var(--paper-dim);
+    margin-bottom: 9vh;
+  }
+  #contact .grid{
+    max-width:1040px; margin:0 auto;
+    display:grid;
+    grid-template-columns: minmax(190px, 0.8fr) 1.5fr;
+    gap: 56px 72px;
+    align-items:start;
+  }
+  #contact .field-label{
+    text-transform:uppercase;
+    font-size:11px; letter-spacing:0.22em; color:var(--paper-dim);
+    margin-bottom: 28px;
+  }
+  #contact .statement{
+    font-family:var(--serif-jp); font-size:19px; line-height:2.1;
+    color:var(--ink); margin:0;
+  }
+  #contact .statement.en{
+    font-family:var(--serif-en); font-style:italic; font-size:18px;
+  }
+
+  /* each row is one link: the whole line is clickable */
+  #contact .row{
+    display:grid; grid-template-columns: 150px 1fr; gap:20px;
+    align-items:baseline;
+    padding: 22px 4px;
+    border-top: 1px solid var(--line);
+    text-decoration:none; color:inherit;
+    transition: background 0.25s;
+  }
+  #contact .rows .row:last-child{ border-bottom: 1px solid var(--line); }
+  #contact .platform{ font-size:13px; letter-spacing:0.06em; color:var(--ink); }
+  #contact .handle{
+    font-size:13px; letter-spacing:0.06em; color:var(--paper-dim);
+    transition: color 0.25s;
+  }
+  #contact .row:hover{ background: rgba(28,28,30,0.035); }
+  #contact .row:hover .handle{ color:var(--accent); }
+  /* the Discord row isn't a link (usernames aren't linkable), so it shouldn't
+     pretend to be one on hover */
+  #contact .row.static{ cursor:default; }
+  #contact .row.static:hover{ background:none; }
+  #contact .row.static:hover .handle{ color:var(--paper-dim); }
+
+  @media (max-width: 760px){
+    #contact{ padding: 12vh 7vw 14vh; }
+    #contact .grid{ grid-template-columns: 1fr; gap: 44px; }
+    #contact .row{ grid-template-columns: 1fr; gap: 6px; }
+  }
+
   /* ---- flower bed: the scroll runway at the end of the page.
      It is deliberately taller than the screen: the stage below is pinned to
      the viewport, so the flower stays perfectly framed the whole way down
@@ -269,10 +394,23 @@
   </div>
 
   <nav class="side">
-    <a href="#top">top</a>
+    <a href="#kv">top</a>
     <a href="#intro">about me</a>
     <a href="#contact">talk to me!</a>
   </nav>
+
+  <button class="manual-toggle" id="manualToggle" aria-pressed="false">click me for manual mode</button>
+
+  <!-- only ever filled in once the toggle above is clicked: the camera feed
+       with the hand-tracking skeleton drawn over it. Empty until then, so no
+       camera is touched on a normal visit. -->
+  <div id="manualPanel" aria-live="polite">
+    <div class="cam">
+      <video id="manualVideo" autoplay muted playsinline></video>
+      <canvas id="manualOverlay" aria-hidden="true"></canvas>
+    </div>
+    <div class="hint" id="manualHint">left hand: grow · right hand: bloom</div>
+  </div>
 
   <section id="intro">
     <!-- pinned decorative background: sits behind ALL the text below,
@@ -339,6 +477,47 @@
   <section id="projects" style="min-height:60vh; background:var(--paper); position:relative; z-index:5;">
   </section>
 
+  <!-- ---------------- CONTACT ----------------
+       Each row is one link — change the href and the visible handle together.
+       Discord usernames aren't linkable, so that row is a plain <div> with
+       no href and a .static class that switches off the link hover. -->
+  <section id="contact">
+    <div class="eyebrow">contact</div>
+
+    <div class="grid">
+      <div class="blurb">
+        <div class="field-label">reach</div>
+        <div data-lang="ja" class="active">
+          <p class="statement">こんにちは!</p>
+        </div>
+        <div data-lang="en">
+          <p class="statement en">say hi!</p>
+        </div>
+      </div>
+
+      <div class="links">
+        <div class="rows">
+          <a class="row" href="https://instagram.com/pinkporschesenjoyer" target="_blank" rel="noopener">
+            <span class="platform">Instagram</span>
+            <span class="handle">@pinkporschesenjoyer</span>
+          </a>
+          <div class="row static">
+            <span class="platform">Discord</span>
+            <span class="handle">zieliej</span>
+          </div>
+          <a class="row" href="https://tiktok.com/@kynkynu" target="_blank" rel="noopener">
+            <span class="platform">TikTok</span>
+            <span class="handle">@kynkynu</span>
+          </a>
+          <a class="row" href="mailto:aekynhernandez@proton.me">
+            <span class="platform">Email</span>
+            <span class="handle">aekynhernandez@proton.me</span>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- the flower's own space at the very bottom of the page: from here to
        the end of the page it grows, and it blooms as you reach the bottom.
        The closing line lives on the last screen, at the very bottom. -->
@@ -401,6 +580,13 @@
       if (target) lenis.scrollTo(target, { duration: 1.4 });
     });
   });
+
+  // the flower module's manual mode needs to stop the page moving while your
+  // hands drive the plant, so hand it the only two things it needs
+  window.siteScroll = {
+    lock: () => lenis.stop(),
+    unlock: () => lenis.start(),
+  };
 
   // language toggle — swaps between two pre-written blocks, no live translation
   const btnJa = document.getElementById('btn-ja');
@@ -660,6 +846,18 @@ const PARAMS = {
   },
   // kept gentle: the glow should kiss the anthers, not fog the whole page
   glow: { strength: 0.55, radius: 0.32, threshold: 0.4 },
+
+  // manual mode only — same numbers as index_flower.html so the hands feel
+  // identical there and here
+  interaction: {
+    // measured relative to hand size (thumb-index gap / wrist-to-knuckle), so
+    // it reads the same whether you sit close to the camera or far away
+    pinchRatioMin: 0.35,      // fingers touching
+    pinchRatioMax: 1.5,       // fingers fully spread
+    growFullAt: 0.75,         // grow reaches max before a full spread
+    smoothingSeconds: 0.09,   // just enough lag to absorb tracking jitter
+    swapHands: false,         // flip if your camera reports hands backwards
+  },
 };
 
 /* ---- pick this load's flower, and a fresh plant shape with it ---- */
@@ -1327,7 +1525,10 @@ function applyBloom(globalBloom) {
    #flowerBed is the runway at the end of the page and the flower's stage is
    pinned to the screen inside it. Two things are read from the runway:
      · fade  — how far the runway has risen into view, so the night garden
-               arrives smoothly instead of popping in over the footer
+               arrives smoothly instead of popping in over the footer. It
+               waits until the runway's top is FADE_WINDOW up the screen,
+               so the contact list is never dimmed while it is being read,
+               then goes fully black right as growth begins.
      · growth — how far down the runway we have scrolled, 0 when its top
                reaches the top of the screen and 1 at the very end of the
                page. Halfway down the flower is halfway grown.
@@ -1337,8 +1538,9 @@ function scrollState() {
   const rect = bed.getBoundingClientRect();
   const viewportHeight = window.innerHeight;
 
+  const fadeWindow = viewportHeight * 0.45;
   const fade = THREE.MathUtils.clamp(
-    (viewportHeight - rect.top) / viewportHeight, 0, 1);
+    (fadeWindow - rect.top) / fadeWindow, 0, 1);
   // the runway's top is 0, the end of the page is rect.height - viewport
   const travel = Math.max(1, rect.height - viewportHeight);
   const progress = THREE.MathUtils.clamp(-rect.top / travel, 0, 1);
@@ -1362,6 +1564,386 @@ function resize() {
 }
 
 /* -------------------------------------------------------------------------
+   PINNED CHROME — the side nav, the title, the location line and the
+   language toggle all sit over the page for the whole scroll, so they can't
+   be one fixed colour. They are cream against the dark hero and against the
+   night-time flower space, and ink once the paper sections are behind them.
+
+   Each one is probed on its own, using the same fade value the flower is
+   drawn with, so the chrome can never disagree with how dark the backdrop
+   actually is. Probing separately matters mid-scroll: the labels along the
+   top can still be over the hero while the links at the bottom are already
+   over paper.
+   ------------------------------------------------------------------------- */
+const heroSection = document.getElementById('kv');
+const pinnedChrome = [
+  document.querySelector('nav.side'),
+  document.querySelector('.kv-title'),
+  document.querySelector('.kv-onair'),
+  document.querySelector('.lang-toggle'),
+].filter(Boolean);
+const chromeIsInk = new WeakMap();
+
+function chromeProbeY(element) {
+  // the nav is a full-height column with the links down at the bottom, so
+  // measure the links themselves rather than the whole empty column
+  if (element.tagName === 'NAV') {
+    const links = element.querySelectorAll('a');
+    if (links.length) {
+      return (links[0].getBoundingClientRect().top +
+              links[links.length - 1].getBoundingClientRect().bottom) / 2;
+    }
+  }
+  const rect = element.getBoundingClientRect();
+  return rect.top + rect.height / 2;
+}
+
+function updatePinnedChrome(nightFade) {
+  const hero = heroSection ? heroSection.getBoundingClientRect() : null;
+
+  for (const element of pinnedChrome) {
+    const probeY = chromeProbeY(element);
+
+    // dark behind it if the night has come up, or the hero is still there.
+    // 0.45 is the exact crossover where black and cream read equally well
+    // against the fading backdrop, so neither colour ever drops below about
+    // 3.8:1 on its own background
+    let overDark = nightFade > 0.45;
+    if (!overDark && hero) {
+      overDark = probeY >= hero.top && probeY <= hero.bottom;
+    }
+
+    const wantInk = !overDark;
+    if (chromeIsInk.get(element) === wantInk) continue;   // only on change
+    chromeIsInk.set(element, wantInk);
+    element.classList.toggle('dark', wantInk);
+  }
+}
+
+/* -------------------------------------------------------------------------
+   MANUAL MODE — the webcam half of index_flower.html, boiled down to one
+   panel and one gesture pair.
+
+   Nothing in here runs until the corner toggle is clicked: no permission
+   prompt, no model download, no camera light. Once it IS on, the stage takes
+   the screen the same way it does when you scroll to the bottom, scrolling
+   stops moving the page, and your hands drive the plant instead:
+
+     left hand  — pinch out to grow the stem
+     right hand — pinch out to open the flowers
+
+   Pinch is thumb-tip to index-tip divided by wrist-to-knuckle length, so it
+   means the same thing whether you sit close to the lens or far from it.
+   ------------------------------------------------------------------------- */
+const manualToggle = document.getElementById('manualToggle');
+const manualPanel = document.getElementById('manualPanel');
+const manualVideo = document.getElementById('manualVideo');
+const manualOverlay = document.getElementById('manualOverlay');
+const manualHint = document.getElementById('manualHint');
+const overlayCtx = manualOverlay ? manualOverlay.getContext('2d') : null;
+
+const MANUAL_HINT_IDLE = 'raise both hands — left: grow · right: bloom · esc to exit';
+const MANUAL_HINT_LIVE = 'left hand: grow · right hand: bloom · esc to exit';
+const HAND_CONNECTIONS = [
+  [0,1],[1,2],[2,3],[3,4],         // thumb
+  [0,5],[5,6],[6,7],[7,8],         // index
+  [5,9],[9,10],[10,11],[11,12],    // middle
+  [9,13],[13,14],[14,15],[15,16],  // ring
+  [13,17],[17,18],[18,19],[19,20], // pinky
+  [0,17],                          // palm edge
+];
+
+let manualOn = false;
+// until a hand is actually seen this is false, and the plant runs its own slow
+// grow-and-bloom cycle — so the screen is never an empty black rectangle while
+// you work out that you're supposed to raise your hands
+let manualHandsLive = false;
+let handLandmarker = null;
+let lastHandRead = 0;
+const rawControl = { grow: 0, bloom: 0 };
+const manualControl = { grow: 0, bloom: 0 };   // smoothed toward rawControl
+
+/* pinch openness 0..1, normalized by hand size so camera distance is
+   irrelevant: (thumb tip <-> index tip) / (wrist <-> middle knuckle) */
+function computePinchValue(landmarks) {
+  const thumbTip = landmarks[4];
+  const indexTip = landmarks[8];
+  const wrist = landmarks[0];
+  const middleKnuckle = landmarks[9];
+  const pinchGap = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+  const handScale = Math.hypot(
+    wrist.x - middleKnuckle.x, wrist.y - middleKnuckle.y);
+  if (handScale < 1e-5) return 0;
+  const pinchRatio = pinchGap / handScale;
+  const { pinchRatioMin, pinchRatioMax } = PARAMS.interaction;
+  return THREE.MathUtils.clamp(
+    (pinchRatio - pinchRatioMin) / (pinchRatioMax - pinchRatioMin), 0, 1);
+}
+
+/* which physical hand is this? MediaPipe labels handedness for a MIRRORED
+   (selfie) image, and we feed it the raw feed, so its "Right" is your
+   physical left hand */
+function isPhysicalLeftHand(reportedLabel) {
+  let isLeft = reportedLabel === 'Right';
+  if (PARAMS.interaction.swapHands) isLeft = !isLeft;
+  return isLeft;
+}
+
+/* ---- skeleton + pinch, drawn over the camera window ---- */
+function drawHandOverlay(handsFound, handednessList) {
+  if (!overlayCtx || manualVideo.videoWidth === 0) return;
+
+  // the video isn't cropped, so the mapping from hand space to screen space is
+  // direct; matching the video's own aspect ratio keeps the stretch honest
+  const overlayWidth = 640;
+  const overlayHeight = Math.round(
+    overlayWidth * manualVideo.videoHeight / manualVideo.videoWidth);
+  if (manualOverlay.width !== overlayWidth ||
+      manualOverlay.height !== overlayHeight) {
+    manualOverlay.width = overlayWidth;
+    manualOverlay.height = overlayHeight;
+  }
+  overlayCtx.clearRect(0, 0, overlayWidth, overlayHeight);
+
+  for (let handIndex = 0; handIndex < handsFound.length; handIndex++) {
+    const landmarks = handsFound[handIndex];
+    const reportedLabel = handednessList[handIndex]?.[0]?.categoryName || '';
+    const physicalLeft = isPhysicalLeftHand(reportedLabel);
+    const handColor = physicalLeft ? '#43e97b' : '#ff4d6d';   // green grow, red bloom
+    // the video is mirrored on screen, so mirror x to match what you see
+    const toScreenX = (landmark) => (1 - landmark.x) * overlayWidth;
+    const toScreenY = (landmark) => landmark.y * overlayHeight;
+
+    overlayCtx.globalAlpha = 0.75;
+    overlayCtx.strokeStyle = handColor;
+    overlayCtx.lineWidth = 2;
+    overlayCtx.beginPath();
+    for (const [fromIdx, toIdx] of HAND_CONNECTIONS) {
+      overlayCtx.moveTo(toScreenX(landmarks[fromIdx]), toScreenY(landmarks[fromIdx]));
+      overlayCtx.lineTo(toScreenX(landmarks[toIdx]), toScreenY(landmarks[toIdx]));
+    }
+    overlayCtx.stroke();
+
+    overlayCtx.fillStyle = handColor;
+    for (const landmark of landmarks) {
+      overlayCtx.beginPath();
+      overlayCtx.arc(toScreenX(landmark), toScreenY(landmark), 3, 0, Math.PI * 2);
+      overlayCtx.fill();
+    }
+
+    // the pinch itself — thumb tip <-> index tip — and what it is driving
+    const thumbTip = landmarks[4];
+    const indexTip = landmarks[8];
+    overlayCtx.globalAlpha = 1;
+    overlayCtx.strokeStyle = '#ffcf5e';
+    overlayCtx.lineWidth = 4;
+    overlayCtx.beginPath();
+    overlayCtx.moveTo(toScreenX(thumbTip), toScreenY(thumbTip));
+    overlayCtx.lineTo(toScreenX(indexTip), toScreenY(indexTip));
+    overlayCtx.stroke();
+    for (const tipLandmark of [thumbTip, indexTip]) {
+      overlayCtx.fillStyle = '#ffcf5e';
+      overlayCtx.beginPath();
+      overlayCtx.arc(toScreenX(tipLandmark), toScreenY(tipLandmark), 6, 0, Math.PI * 2);
+      overlayCtx.fill();
+    }
+
+    overlayCtx.font = 'bold 18px monospace';
+    overlayCtx.textAlign = 'center';
+    overlayCtx.fillStyle = '#fff';
+    overlayCtx.fillText(
+      `${physicalLeft ? 'grow' : 'bloom'} ${computePinchValue(landmarks).toFixed(2)}`,
+      (toScreenX(thumbTip) + toScreenX(indexTip)) / 2,
+      (toScreenY(thumbTip) + toScreenY(indexTip)) / 2 - 12);
+  }
+}
+
+function readHands() {
+  if (!handLandmarker || manualVideo.readyState < 2) return;
+
+  let result;
+  try {
+    result = handLandmarker.detectForVideo(manualVideo, performance.now());
+  } catch (detectError) {
+    // never let a detection hiccup kill the render loop
+    console.warn('hand detection error', detectError);
+    return;
+  }
+
+  const handsFound = result.landmarks || [];
+  const handednessList = result.handedness || result.handednesses || [];
+  drawHandOverlay(handsFound, handednessList);
+  if (handsFound.length === 0) return;
+
+  if (!manualHandsLive) {
+    manualHandsLive = true;       // hands found — hand them the plant for good
+    if (manualHint) manualHint.textContent = MANUAL_HINT_LIVE;
+  }
+
+  for (let handIndex = 0; handIndex < handsFound.length; handIndex++) {
+    const landmarks = handsFound[handIndex];
+    const pinchValue = computePinchValue(landmarks);
+    const reportedLabel = handednessList[handIndex]?.[0]?.categoryName || '';
+    if (isPhysicalLeftHand(reportedLabel)) rawControl.grow = pinchValue;
+    else rawControl.bloom = pinchValue;
+  }
+}
+
+/* hands are read at 30Hz, not every frame — the model is the expensive part
+   and it does not get more accurate for being asked 120 times a second */
+function stepManualControl(deltaSeconds, elapsed) {
+  if (elapsed - lastHandRead > 1 / 30) {
+    lastHandRead = elapsed;
+    readHands();
+  }
+
+  let targetGrow, targetBloom;
+  if (manualHandsLive) {
+    // grow hits max at growFullAt so you don't need a full spread of the hand
+    targetGrow = THREE.MathUtils.clamp(
+      rawControl.grow / PARAMS.interaction.growFullAt, 0, 1);
+    // bloom follows the hand 1:1 — hold it open and it stays open, and it
+    // holds its last pose when you take your hands away
+    targetBloom = rawControl.bloom;
+  } else {
+    // no hands in frame (yet, or ever) — grow once and let the flowers breathe
+    // rather than leaving a dead bud on a black screen
+    targetGrow = 1;
+    targetBloom = 0.5 - 0.5 * Math.cos((elapsed / 9) * Math.PI * 2);
+  }
+
+  // lag filter, time-based, so it feels the same at any framerate
+  const alpha = 1 - Math.exp(-deltaSeconds / PARAMS.interaction.smoothingSeconds);
+  manualControl.grow += (targetGrow - manualControl.grow) * alpha;
+  manualControl.bloom += (targetBloom - manualControl.bloom) * alpha;
+}
+
+async function openCamera() {
+  const stream = await navigator.mediaDevices.getUserMedia({
+    video: { width: 1280, height: 720 },
+  });
+  manualVideo.srcObject = stream;
+  await manualVideo.play().catch(() => {});   // some browsers need a nudge
+}
+
+async function loadHandTracker() {
+  // imported on demand — someone who never touches manual mode never
+  // downloads the tracker or its wasm
+  const { HandLandmarker, FilesetResolver } = await import(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs');
+
+  const filesetResolver = await FilesetResolver.forVisionTasks(
+    'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+
+  const trackerOptions = {
+    baseOptions: {
+      modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+      delegate: 'GPU',
+    },
+    numHands: 2,
+    runningMode: 'VIDEO',
+  };
+
+  try {
+    handLandmarker = await HandLandmarker.createFromOptions(filesetResolver, trackerOptions);
+  } catch (gpuError) {
+    // the GPU delegate fails on some machines and browsers — retry on CPU
+    console.warn('GPU delegate failed, retrying on CPU', gpuError);
+    trackerOptions.baseOptions.delegate = 'CPU';
+    handLandmarker = await HandLandmarker.createFromOptions(filesetResolver, trackerOptions);
+  }
+}
+
+function setManualToggleLabel(text) {
+  if (manualToggle) manualToggle.textContent = text;
+}
+
+/* one change at a time: the camera prompt can sit open for a while, and a
+   second click landing mid-flight must not queue up a second switch */
+let manualBusy = false;
+
+async function setManual(on) {
+  if (on === manualOn || manualBusy) return;
+  manualBusy = true;
+  try {
+    await switchManual(on);
+  } finally {
+    manualBusy = false;
+  }
+}
+
+async function switchManual(on) {
+  if (on === manualOn) return;
+
+  if (!on) {
+    manualOn = false;
+    manualHandsLive = false;
+    if (manualPanel) manualPanel.classList.remove('on');
+    setManualToggleLabel('click me for manual mode');
+    if (manualToggle) manualToggle.setAttribute('aria-pressed', 'false');
+    // let the camera go, so the recording light actually goes out
+    if (manualVideo && manualVideo.srcObject) {
+      manualVideo.srcObject.getTracks().forEach((track) => track.stop());
+      manualVideo.srcObject = null;
+    }
+    if (overlayCtx && manualOverlay) {
+      overlayCtx.clearRect(0, 0, manualOverlay.width, manualOverlay.height);
+    }
+    rawControl.grow = 0; rawControl.bloom = 0;
+    manualControl.grow = 0; manualControl.bloom = 0;
+    if (window.siteScroll) window.siteScroll.unlock();
+    return;
+  }
+
+  // ask for the camera BEFORE taking the screen over: with nothing to drive
+  // the flower with, the page should just carry on exactly as it was
+  setManualToggleLabel('looking for a camera…');
+  try {
+    await openCamera();
+  } catch (mediaError) {
+    console.warn('manual mode needs a camera', mediaError);
+    setManualToggleLabel('no camera found');
+    setTimeout(() => {
+      if (!manualOn) setManualToggleLabel('click me for manual mode');
+    }, 4000);
+    return;
+  }
+
+  manualOn = true;
+  manualHandsLive = false;        // something alive while the tracker loads
+  if (manualPanel) manualPanel.classList.add('on');
+  setManualToggleLabel('leave manual mode');
+  if (manualToggle) manualToggle.setAttribute('aria-pressed', 'true');
+  if (window.siteScroll) window.siteScroll.lock();
+
+  if (manualHint) manualHint.textContent = 'loading hand tracking…';
+  try {
+    await loadHandTracker();
+    manualHandsLive = false;      // still the ambient cycle until a hand shows
+    if (manualHint) manualHint.textContent = MANUAL_HINT_IDLE;
+  } catch (handError) {
+    console.warn('hand tracker failed to load', handError);
+    manualHandsLive = false;
+    if (manualHint) manualHint.textContent =
+      'hand tracking unavailable — watching it grow instead';
+  }
+}
+
+if (manualToggle) {
+  manualToggle.addEventListener('click', () => setManual(!manualOn));
+}
+
+window.addEventListener('keydown', (event) => {
+  if (!manualOn) return;
+  if (event.key === 'Escape') { setManual(false); return; }
+  // the page is hidden behind the flower, so stop stray keys scrolling it
+  if ([' ', 'ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End']
+      .includes(event.key)) {
+    event.preventDefault();
+  }
+});
+
+/* -------------------------------------------------------------------------
    MAIN LOOP
    ------------------------------------------------------------------------- */
 const clock = new THREE.Clock();
@@ -1376,17 +1958,28 @@ function animate() {
   // ease toward the scroll position so fast flicks still read as growth
   smoothed += (state.progress - smoothed) * (1 - Math.exp(-deltaSeconds / 0.18));
 
-  // the plant grows first, then the flowers open over the last stretch, so
-  // the very bottom of the page is always a finished bloom
-  const grow = THREE.MathUtils.clamp(smoothed / 0.9, 0, 1);
-  const bloom = THREE.MathUtils.clamp((smoothed - 0.5) / 0.5, 0, 1);
-
-  if (stage) stage.style.opacity = state.fade.toFixed(3);
-  // the closing line arrives with the last of the bloom
-  if (closingLine) {
-    closingLine.style.opacity =
-      THREE.MathUtils.clamp((smoothed - 0.72) / 0.28, 0, 1).toFixed(3);
+  // two ways to drive the same plant: the scroll (the default) or your hands
+  // (manual mode). Both end up as one grow + one bloom value.
+  let grow, bloom, fade, closing;
+  if (manualOn) {
+    stepManualControl(deltaSeconds, elapsed);
+    grow = manualControl.grow;
+    bloom = manualControl.bloom;
+    fade = 1;                       // manual mode owns the whole screen
+    closing = THREE.MathUtils.clamp((bloom - 0.72) / 0.28, 0, 1);
+  } else {
+    // the plant grows first, then the flowers open over the last stretch, so
+    // the very bottom of the page is always a finished bloom
+    grow = THREE.MathUtils.clamp(smoothed / 0.9, 0, 1);
+    bloom = THREE.MathUtils.clamp((smoothed - 0.5) / 0.5, 0, 1);
+    fade = state.fade;
+    // the closing line arrives with the last of the bloom
+    closing = THREE.MathUtils.clamp((smoothed - 0.72) / 0.28, 0, 1);
   }
+
+  updatePinnedChrome(fade);
+  if (stage) stage.style.opacity = fade.toFixed(3);
+  if (closingLine) closingLine.style.opacity = closing.toFixed(3);
 
   applyGrow(grow);
   applyBloom(bloom);
@@ -1400,8 +1993,8 @@ function animate() {
   cam.lookAt(0, FOCUS_Y, 0);
   plantGroup.rotation.z = Math.sin(elapsed * 0.3) * 0.015;
 
-  // nothing on screen yet? skip the draw entirely
-  if (!state.onScreen) return;
+  // nothing on screen yet? skip the draw entirely (manual mode is always on)
+  if (!manualOn && !state.onScreen) return;
 
   bloomComposer.render();
   composer.render();
