@@ -149,6 +149,9 @@
   @media (max-width: 760px){
     .manual-toggle{ bottom:34px; right:24px; }
     #manualPanel{ right:24px; bottom:76px; width:min(260px, 62vw); }
+    /* the centered closing line and the right-aligned toggle share the
+       bottom edge and collide on narrow screens, so lift the closing line */
+    #flowerBed footer{ bottom:44px; }
   }
 
   .kv-jp-caption{
@@ -322,11 +325,6 @@
   #contact .row.static:hover{ background:none; }
   #contact .row.static:hover .handle{ color:var(--paper-dim); }
 
-  #contact .player{ margin-top:40px; }
-  #contact .player iframe{
-    width:100%; border-radius:12px; display:block;
-    border:1px solid var(--line);
-  }
 
   @media (max-width: 760px){
     #contact{ padding: 12vh 7vw 14vh; }
@@ -392,7 +390,7 @@
 
   <div id="kv">
     <div class="scrim"></div>
-    <div class="kv-jp-caption">ニョム。</div>
+    <div class="kv-jp-caption">記録を、綴る。</div>
   </div>
 
   <!-- lily canvas: blooms on scroll down, unblooms on scroll up -->
@@ -448,9 +446,9 @@
     <div class="eyebrow">about me</div>
     <div class="lead">
       <div data-lang="ja" class="active">
-        <p class="cred">キン、アイデンティティの危機に陥っている</p>
-        <h2>私はあなたを信じています、<br>遠い場所へ旅立ちながら。</h2>
-        <p class="en-quote">"doing the things i love, my way."</p>
+        <p class="cred">情報科学を志す学生 ／ フィリピン在住</p>
+        <h2>を好きなもの、<br>好きなように、続けている。</h2>
+        <p class="en-quote">"keeping at the things I love, in my own way."</p>
       </div>
       <div data-lang="en">
         <p class="cred">kyn, currently having an identity crisis</p>
@@ -505,6 +503,8 @@
         <div data-lang="en">
           <p class="statement en">say hi!</p>
         </div>
+      </div>
+
       <div class="links">
         <div class="rows">
           <a class="row" href="https://instagram.com/pinkporschesenjoyer" target="_blank" rel="noopener">
@@ -648,20 +648,6 @@ const SPECIES = [
       arch:   { petalTilt: 55, recurve: 70,  petalSpin: 32, stamen: 0    },
       full:   { petalTilt: 62, recurve: 112, petalSpin: 46, stamen: 1    },
       settle: { petalTilt: 58, recurve: 102, petalSpin: 42, stamen: 0.96 } },
-  },
-  {
-    id: 'tigerLily', name: 'Tiger Lily',
-    petals: { count: 6, length: 0.5, maxWidth: 0.13, curlExponent: 2.0,
-      edgeRippleAmp: 0.012, edgeRippleFreq: 3.0,
-      color: 0xff6a13, emissive: 0x5a2200 },
-    stamens: { count: 18, lengthRatio: 1.25, outwardDeg: 78, hookDeg: 110,
-      hookSharpness: 3.0, color: 0xb33d00, antherColor: 0x7a2b00 },
-    bloomPoses: {
-      bud:    { petalTilt: 3,  recurve: -8,  petalSpin: 0,  stamen: 0    },
-      lift:   { petalTilt: 16, recurve: 14,  petalSpin: 16, stamen: 0    },
-      arch:   { petalTilt: 70, recurve: 100, petalSpin: 38, stamen: 0    },
-      full:   { petalTilt: 78, recurve: 150, petalSpin: 52, stamen: 1    },
-      settle: { petalTilt: 74, recurve: 142, petalSpin: 48, stamen: 0.96 } },
   },
   {
     id: 'cherryBlossom', name: 'Cherry Blossom',
@@ -893,9 +879,9 @@ const isMobile = window.matchMedia('(max-width: 760px)').matches ||
   /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 if (isMobile) {
-  PARAMS.petals.lengthSegments = 10;   // was 18 — fewer verts per petal
-  PARAMS.petals.widthSegments = 5;     // was 9
-  PARAMS.plant.segmentsPerBranch = 6;  // was 10 — coarser stem tubes
+  PARAMS.petals.lengthSegments = 14;   // desktop 18
+  PARAMS.petals.widthSegments = 7;     // desktop 9
+  PARAMS.plant.segmentsPerBranch = 9;  // desktop 10, 6 looked visibly jagged
 }
 
 /* -------------------------------------------------------------------------
@@ -952,7 +938,7 @@ const closingLine = bed ? bed.querySelector('footer') : null;
 const canvas = document.getElementById('flowerCanvas');
 
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, alpha: true });
-renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio, 1) :
+renderer.setPixelRatio(isMobile ? Math.min(window.devicePixelRatio, 1.75) :
   Math.min(window.devicePixelRatio, 2));
 renderer.setClearColor(0x000000, 0);
 
@@ -1312,7 +1298,7 @@ function buildStamenGeometry() {
   const beforeTip = pathPoints[pathPoints.length - 2];
   const tipTangent = tipPosition.clone().sub(beforeTip);
   return {
-    geometry: new THREE.TubeGeometry(curve, isMobile ? 10 : 24, conf.radius, isMobile ? 4 : 5, false),
+    geometry: new THREE.TubeGeometry(curve, isMobile ? 16 : 24, conf.radius, isMobile ? 4 : 5, false),
     tipPosition: tipPosition.clone(),
     tipAngle: Math.atan2(tipTangent.z, tipTangent.y),
   };
@@ -1657,8 +1643,8 @@ function resize() {
   composer.setSize(width, height);
   // bloom is a blurred pass anyway, so a lower-res render target costs
   // nothing visually and roughly quarters the pixel work on phones
-  const bloomWidth = isMobile ? Math.max(2, Math.round(width / 2)) : width;
-  const bloomHeight = isMobile ? Math.max(2, Math.round(height / 2)) : height;
+  const bloomWidth = isMobile ? Math.max(2, Math.round(width * 0.75)) : width;
+  const bloomHeight = isMobile ? Math.max(2, Math.round(height * 0.75)) : height;
   bloomComposer.setSize(bloomWidth, bloomHeight);
   cam.aspect = width / height;
   cam.updateProjectionMatrix();
