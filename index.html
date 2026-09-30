@@ -242,6 +242,25 @@
   }
   #intro .prose p.callout{ font-size:24px; margin-top:20vh; margin-bottom:20vh; }
 
+  /* the pinned strip's own label. It sits in the empty tail of .prose, which
+     lines it up with the photos at the one moment they are actually in focus,
+     and above the scrim (z-index 5, same as the other intro text) so the paper
+     wash behind it can't fade the words. */
+  #intro .strip-caption{
+    position:relative; z-index:5;
+    display:flex; align-items:center; justify-content:center; gap:20px;
+    max-width:640px; margin:0 auto; padding:0 30px 20vh;
+    font-size:12px; letter-spacing:0.2em; color:var(--paper-dim);
+    text-align:center;
+  }
+  #intro .strip-caption .rule{
+    height:1px; flex:1 1 40px; max-width:140px;
+    background:linear-gradient(to right, rgba(28,28,30,0), rgba(28,28,30,0.3));
+  }
+  #intro .strip-caption .rule:last-child{
+    background:linear-gradient(to left, rgba(28,28,30,0), rgba(28,28,30,0.3));
+  }
+
   /* decorative marquee, pinned at a fixed spot on screen behind the whole
      #intro section. Doesn't move up/down with the text — only drifts
      sideways on its own clock. Blur is controlled by scroll progress via JS:
@@ -713,6 +732,17 @@
         <p class="callout">not really sure what to put here yet, thank you for viewing!</p>
       </div>
     </div>
+
+    <!-- caption for the pinned photo strip above. It lives at the tail end of
+         the section on purpose: that is exactly where the marquee has finished
+         sharpening, so the label and the photos come into focus together.
+         Change the words below to retitle it — nothing else needs touching. -->
+    <div class="strip-caption">
+      <span class="rule" aria-hidden="true"></span>
+      <div data-lang="ja" class="active">今週のハイライト</div>
+      <div data-lang="en">highlight of my week</div>
+      <span class="rule" aria-hidden="true"></span>
+    </div>
   </section>
 
   <!-- whatever comes right after #intro will naturally sit on top of the
@@ -923,25 +953,28 @@
   // The manifest is deliberately forgiving, because it gets edited by hand
   // every week. Either shape works:
   //
-  //   a plain list of links, one per line ('#' starts a comment)
+  //   a plain list, one per line ('#' starts a comment), and each line can be
+  //   a bare link OR a whole embed snippet — the picture gets dug out of it:
   //     # week of oct 6
-  //     https://ibb.co/abc1234
   //     https://i.ibb.co/xyz/photo.jpg
+  //     <a href="https://ibb.co/abc1234"><img src="https://i.ibb.co/… .jpg"></a>
   //
   //   …or JSON: ["https://…"] / {"images": ["https://…"]}
   //
-  // Both the imgbb page link (ibb.co/…) and the direct image link (i.ibb.co/…)
-  // are accepted — the page link gets rewritten to the image file. The sources
-  // below are tried in order and the first usable list wins; if none of them
-  // answer, the grey placeholder boxes simply stay put.
+  // Pasting the embed snippet is what keeps the strip sharp: a bare imgbb page
+  // link can only ever reach their ~180px thumbnail. Cloudinary links get sized
+  // automatically. The sources below are tried in order and the first usable
+  // list wins; if none of them answer, the grey placeholder boxes stay put.
   //
   // The weekly routine (about two minutes):
-  //   1. upload the week's photos anywhere that hands out direct links to the
-  //      image itself — a GitHub issue attachment, imgbb, catbox.moe,
-  //      Cloudinary, anything. Keep the links.
-  //      Use a FRESH link every time: overwriting an old file at the same URL
-  //      means browsers keep showing the old picture until their cache expires.
-  //   2. paste those links into the manifest. That is the entire job.
+  //   1. upload the week's photos somewhere public and copy links. On imgbb the
+  //      "Full image (linked)" snippet is the one to take: it carries the sharp
+  //      ~480px file, where the plain page link only ever reaches a ~180px
+  //      thumbnail. Either way the strip digs the picture out of whatever you
+  //      paste — a bare link, an <img …> snippet, or BBCode all work.
+  //      Always use FRESH links: overwriting an old file at the same URL means
+  //      browsers keep showing the old picture until their cache expires.
+  //   2. paste them into the manifest. That is the entire job.
   //
   // If the manifest lives in a public Gist, the repo is never touched at all:
   // gist.github.com → new gist → name the file highlights.json → paste the
@@ -953,36 +986,84 @@
     // version, so later edits to the gist would never show up here
   ];
   const HIGHLIGHT_MAX = 24;  // sanity cap, in case a list ever runs away
+  let softThumbNotice = false;
 
-  // imgbb gives you a *page* link (ibb.co/xxxxxx) when you copy out of the
-  // address bar — and a page link inside an <img> is just a broken box. Their
-  // CDN ignores the filename, so the id alone is enough to reach the picture.
-  // Already-direct links (i.ibb.co/…, or any other host) fall straight through.
-  // NOTE: without the original filename this resolves to imgbb's small
-  // thumbnail (~180px), which is soft at large sizes. Pasting the i.ibb.co/…
-  // link instead keeps the strip crisp — see the comment on the manifest.
+  const IMAGE_EXT = /\.(?:jpe?g|png|gif|webp|avif|bmp|svg)(?:$|[?#])/i;
+
+  // A URL that is definitely the picture file itself. imgbb's direct links have
+  // no file extension, hence the host check.
+  function looksLikeImageUrl(url){
+    return IMAGE_EXT.test(url) || /^https?:\/\/i\.ibb\.co\//i.test(url);
+  }
+
+  // Turn whatever link you pasted into one the browser can use well.
   function directImageUrl(src){
     const url = src.trim();
+
+    // Cloudinary keeps the size in the URL, so a 4000px upload can be asked for
+    // at web size instead — 640px wide, never upscaled, auto quality and
+    // webp/avif where supported. Roughly 40-80KB instead of 1-2MB.
+    const cloud = /^https:\/\/res\.cloudinary\.com\/([^/]+)\/image\/upload\/(.+)$/i.exec(url);
+    if (cloud){
+      const firstSegment = cloud[2].split('/')[0];
+      if (firstSegment.indexOf('_') < 0)   // don't stack on an already-sized URL
+        return 'https://res.cloudinary.com/' + cloud[1] + '/image/upload/w_640,c_limit,q_auto,f_auto/' + cloud[2];
+      return url;
+    }
+
+    // imgbb gives you a *page* link (ibb.co/xxxxxx) when you copy out of the
+    // address bar, and a page link inside an <img> is just a broken box. Their
+    // CDN ignores the filename, so the id alone reaches the picture — but that
+    // id is their ~180px thumbnail, so this is the blurry last resort. The
+    // 480px file has a different id, which is why the embed snippet matters.
     const m = /^https?:\/\/(?:www\.)?(?:ibb\.co|imgbb\.com)\/([A-Za-z0-9]{6,})(?:\/[^?#]*)?\/?$/i.exec(url);
     if (!m) return url;
     if (/^(upload|album|login|signup|join|contact|tos|privacy|plugin|api)$/i.test(m[1])) return url;
+    if (!softThumbNotice){
+      softThumbNotice = true;
+      console.info('highlights: an imgbb page link only reaches their ~180px thumbnail. ' +
+        'Paste the "Full image (linked)" snippet instead for a sharp photo.');
+    }
     return 'https://i.ibb.co/' + m[1] + '/photo.jpg';
   }
 
-  // A hand-written list: one link per line, '#' starts a comment, bullets and
-  // stray punctuation ignored. Only tokens that actually look like a link
-  // count, so a half-finished JSON array or a leftover note can't break it.
+  // A hand-written list, deliberately forgiving: one link per line, '#' starts a
+  // comment, bullets and stray punctuation ignored. You can also paste a whole
+  // embed snippet instead of a bare link — <img src="…">, [img]…[/img] and
+  // markdown all get taken apart, and when a snippet contains both the page
+  // link and the real image, the image wins (it's the sharp one).
   function plainListToUrls(text){
     const list = [];
     for (const rawLine of text.split('\n')){
-      const line = rawLine.split('#')[0].replace(/["'`]/g, ' ');
+      const line = rawLine.split('#')[0].replace(/["'`<>\[\]()]/g, ' ');
+      const found = [];
       for (let token of line.split(/[\s,]+/)){
-        token = token.replace(/^[-*\u2022]+/, '').replace(/^\d+[.)]+/, '').replace(/[;.]+$/, '');
-        if (/^https?:\/\//i.test(token)) list.push(token);
-        if (list.length >= HIGHLIGHT_MAX) return list;
+        token = token.replace(/^(?:src|href|url|img)?[:=]+/i, '')
+                     .replace(/^[-*\u2022]+/, '')
+                     .replace(/^\d+[.)]+/, '')
+                     .replace(/[;.]+$/, '');
+        if (/^https?:\/\//i.test(token)) found.push(token);
       }
+      if (!found.length) continue;
+      const pictures = found.filter(looksLikeImageUrl);
+      for (const url of (pictures.length ? pictures : found)) list.push(url);
+      if (list.length >= HIGHLIGHT_MAX) break;
     }
     return list;
+  }
+
+  // De-duplicate by host id, so pasting the same photo twice (say, last week's
+  // page link and this week's snippet) shows it once. Two different ids can
+  // still hold the same picture at different sizes — imgbb does that — and only
+  // removing one from the gist fixes that case.
+  function dedupeUrls(list){
+    const seen = new Set();
+    const out = [];
+    for (const url of list){
+      const key = url.replace(/^https?:\/\//i, '').replace(/\/[A-Za-z0-9._-]+$/, '').toLowerCase();
+      if (!seen.has(key)){ seen.add(key); out.push(url); }
+    }
+    return out;
   }
 
   // Takes the manifest as raw text and returns the links it contains, whatever
@@ -1002,9 +1083,9 @@
         if (src.trim()) list.push(directImageUrl(src));
         if (list.length >= HIGHLIGHT_MAX) break;
       }
-      return list;
+      return dedupeUrls(list);
     }
-    return plainListToUrls(text).map(directImageUrl);
+    return dedupeUrls(plainListToUrls(text).map(directImageUrl));
   }
 
   async function loadHighlights(){
