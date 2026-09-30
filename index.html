@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ja">
 <!--this is semi-vibe coded, 09/27/26, i'm thinking of computer science, good luck future me!
-  to anyone reading this, i'm sorry if i ever did you any wrong, i'm still struggling with everything.-->
+  credits to https://github.com/cupidbity/spiderlily for the flowers!-->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -266,13 +266,19 @@
     animation: drift 40s linear infinite; /* passive, on its own clock — not scroll-linked */
     filter: blur(var(--marquee-blur, 22px));
     will-change: transform, filter;
-    /* no transition here — a transition fighting the already-running drift
-       animation is what caused the stutter/"gap" right at the loop restart */
+    /* opacity ONLY. A transition on transform/filter here is what caused the
+       stutter/"gap" right at the loop restart — it fights the running drift
+       animation. Opacity is safe: it's a separate compositor property. */
+    transition: opacity 0.6s ease;
   }
+  /* .ph is both the grey placeholder box AND the frame each photo loads
+     into — the manifest swaps the boxes for <img class="ph">, so the size,
+     radius and hairline frame below apply to both without changing anything */
   .marquee-layer .track .ph{
     height:42vh; width:32vh; flex:0 0 auto; border-radius:2px;
     background: rgba(28,28,30,0.08);
     border: 1px solid rgba(28,28,30,0.12);
+    display:block; object-fit:cover;
   }
   @keyframes drift{
     from{ transform:translateX(0); }
@@ -525,7 +531,7 @@
   }
 
   @media (prefers-reduced-motion: reduce){
-    .marquee-layer .track{ animation:none; }
+    .marquee-layer .track{ animation:none; transition:none; }
     nav.side a[href="#board"]::after, #board .field-label::before,
     #contact .surprise .drip{ animation:none; }
     .hold-button{ transition: border-color 0.25s ease; transform:none !important; }
@@ -647,10 +653,16 @@
   <section id="intro">
     <!-- pinned decorative background: sits behind ALL the text below,
          auto-scrolls on its own, stays pinned for the section's whole height -->
-    <div class="marquee-layer">
+    <div class="marquee-layer" aria-hidden="true">
       <div class="pin">
         <div class="track">
-          <!-- empty placeholder boxes — swap each .ph for an <img> once you have real photos -->
+          <!-- The grey boxes below are the fallback: as soon as the page
+               loads, the strip replaces them with whatever photos the
+               manifest lists (see HIGHLIGHT_SOURCES in the script at the
+               bottom — a plain JSON file of image LINKS, so the photos
+               themselves never have to live in this repo and this section
+               never has to be edited again). If no manifest can be read,
+               these boxes just stay. -->
           <div class="ph"></div>
           <div class="ph"></div>
           <div class="ph"></div>
@@ -900,6 +912,171 @@
 
   lenis.on('scroll', updateBlur);
   updateBlur();
+
+  // ---- weekly highlight strip ------------------------------------------
+  //
+  // The photos in this marquee are not in this file and never enter the repo:
+  // they come from a manifest — a tiny JSON list of *links* to images hosted
+  // somewhere else. Swap the manifest and the strip changes; index.html is
+  // never opened again.
+  //
+  // The manifest is deliberately forgiving, because it gets edited by hand
+  // every week. Either shape works:
+  //
+  //   a plain list of links, one per line ('#' starts a comment)
+  //     # week of oct 6
+  //     https://ibb.co/abc1234
+  //     https://i.ibb.co/xyz/photo.jpg
+  //
+  //   …or JSON: ["https://…"] / {"images": ["https://…"]}
+  //
+  // Both the imgbb page link (ibb.co/…) and the direct image link (i.ibb.co/…)
+  // are accepted — the page link gets rewritten to the image file. The sources
+  // below are tried in order and the first usable list wins; if none of them
+  // answer, the grey placeholder boxes simply stay put.
+  //
+  // The weekly routine (about two minutes):
+  //   1. upload the week's photos anywhere that hands out direct links to the
+  //      image itself — a GitHub issue attachment, imgbb, catbox.moe,
+  //      Cloudinary, anything. Keep the links.
+  //      Use a FRESH link every time: overwriting an old file at the same URL
+  //      means browsers keep showing the old picture until their cache expires.
+  //   2. paste those links into the manifest. That is the entire job.
+  //
+  // If the manifest lives in a public Gist, the repo is never touched at all:
+  // gist.github.com → new gist → name the file highlights.json → paste the
+  // links → Create public gist → Raw → paste that URL below (once) and delete
+  // the 'highlights.json' entry, so we stop looking for a file that is gone.
+  const HIGHLIGHT_SOURCES = [
+    'https://gist.githubusercontent.com/zielriu/c8ef2ab1a87c279755436a549909a597/raw/highlights.json',
+    // keep the /raw/ path WITHOUT a revision hash — a hash freezes that exact
+    // version, so later edits to the gist would never show up here
+  ];
+  const HIGHLIGHT_MAX = 24;  // sanity cap, in case a list ever runs away
+
+  // imgbb gives you a *page* link (ibb.co/xxxxxx) when you copy out of the
+  // address bar — and a page link inside an <img> is just a broken box. Their
+  // CDN ignores the filename, so the id alone is enough to reach the picture.
+  // Already-direct links (i.ibb.co/…, or any other host) fall straight through.
+  // NOTE: without the original filename this resolves to imgbb's small
+  // thumbnail (~180px), which is soft at large sizes. Pasting the i.ibb.co/…
+  // link instead keeps the strip crisp — see the comment on the manifest.
+  function directImageUrl(src){
+    const url = src.trim();
+    const m = /^https?:\/\/(?:www\.)?(?:ibb\.co|imgbb\.com)\/([A-Za-z0-9]{6,})(?:\/[^?#]*)?\/?$/i.exec(url);
+    if (!m) return url;
+    if (/^(upload|album|login|signup|join|contact|tos|privacy|plugin|api)$/i.test(m[1])) return url;
+    return 'https://i.ibb.co/' + m[1] + '/photo.jpg';
+  }
+
+  // A hand-written list: one link per line, '#' starts a comment, bullets and
+  // stray punctuation ignored. Only tokens that actually look like a link
+  // count, so a half-finished JSON array or a leftover note can't break it.
+  function plainListToUrls(text){
+    const list = [];
+    for (const rawLine of text.split('\n')){
+      const line = rawLine.split('#')[0].replace(/["'`]/g, ' ');
+      for (let token of line.split(/[\s,]+/)){
+        token = token.replace(/^[-*\u2022]+/, '').replace(/^\d+[.)]+/, '').replace(/[;.]+$/, '');
+        if (/^https?:\/\//i.test(token)) list.push(token);
+        if (list.length >= HIGHLIGHT_MAX) return list;
+      }
+    }
+    return list;
+  }
+
+  // Takes the manifest as raw text and returns the links it contains, whatever
+  // shape it happens to be in.
+  function readHighlightList(text){
+    let raw = null;
+    try{
+      const data = JSON.parse(text);
+      raw = Array.isArray(data) ? data : (data && Array.isArray(data.images) ? data.images : null);
+    }catch(err){
+      raw = null;   // not JSON — fall through to the plain list
+    }
+    if (raw){
+      const list = [];
+      for (const entry of raw){
+        const src = typeof entry === 'string' ? entry : (entry && typeof entry.src === 'string' ? entry.src : '');
+        if (src.trim()) list.push(directImageUrl(src));
+        if (list.length >= HIGHLIGHT_MAX) break;
+      }
+      return list;
+    }
+    return plainListToUrls(text).map(directImageUrl);
+  }
+
+  async function loadHighlights(){
+    for (const source of HIGHLIGHT_SOURCES){
+      try{
+        // no-store AND a unique query, so a manifest you just edited shows up
+        // on the very next reload. GitHub's raw CDN keeps a ~5 minute copy and
+        // no-store alone can't overrule that, which would look like the edit
+        // silently did nothing.
+        const fresh = source + (source.indexOf('?') < 0 ? '?' : '&') + 't=' + Date.now();
+        const res = await fetch(fresh, { cache: 'no-store' });
+        if (!res.ok) continue;
+        const list = readHighlightList(await res.text());
+        if (list.length) return list;
+      }catch(err){ /* offline, missing, or unreadable — try the next source */ }
+    }
+    return null;
+  }
+
+  function buildHighlightTrack(urls){
+    // referrerpolicy: plenty of free hosts refuse to serve an image that is
+    // being leeched by a site they don't know. alt is empty and the whole
+    // layer is aria-hidden, because this is wallpaper, not content.
+    const set = urls.map(src =>
+      '<img class="ph" src="' + src.replace(/"/g, '&quot;').replace(/</g, '&lt;') +
+      '" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">'
+    ).join('');
+
+    // One copy of the list has to be at least a screen wide, or the drift runs
+    // out of photos and slides a bare gap across the page. The boxes are 32vh
+    // wide, so take a guess and then let the DOM confirm it — a short list on
+    // a wide screen just repeats the set more times.
+    let repeats = Math.max(1, Math.ceil(window.innerWidth / (urls.length * (window.innerHeight * 0.32 + 24))));
+    for (let attempt = 0; attempt < 4; attempt++){
+      const copy = set.repeat(repeats);
+      track.innerHTML = copy + copy;   // duplicated once — that is what makes -50% seamless
+      if (track.scrollWidth / 2 >= window.innerWidth) break;
+      repeats *= 2;
+    }
+  }
+
+  // a dead link shouldn't leave a broken-image frame sliding past: drop the
+  // grey box back into that slot so the loop stays seamless
+  track.addEventListener('error', event => {
+    const img = event.target;
+    if (img instanceof HTMLImageElement && img.classList.contains('ph')){
+      const box = document.createElement('div');
+      box.className = 'ph';
+      img.replaceWith(box);
+    }
+  }, true);   // image errors don't bubble, so catch them on the way down
+
+  let highlightUrls = null;
+
+  loadHighlights().then(urls => {
+    if (!urls) return;                    // nothing readable — placeholders stay
+    highlightUrls = urls;
+    track.style.opacity = '0';
+    void track.offsetWidth;               // so the fade has a 0 to start from
+    buildHighlightTrack(urls);
+    track.style.opacity = '1';
+  });
+
+  // the boxes are sized in vh, so a resize or a phone rotation changes how
+  // much strip fits on screen — re-measure, debounced so we don't thrash
+  let highlightResizeTimer = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(highlightResizeTimer);
+    highlightResizeTimer = setTimeout(() => {
+      if (highlightUrls) buildHighlightTrack(highlightUrls);
+    }, 250);
+  });
 
   // ---- scroll progress hairline + the "you are here" dash in the nav ----
   const progressBar = document.getElementById('progress');
