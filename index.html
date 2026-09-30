@@ -413,8 +413,35 @@
   #contact .msg-form textarea:focus{ background: rgba(28,28,30,0.06); }
   #contact .msg-foot{
     display:flex; justify-content:space-between; align-items:center;
+    flex-wrap:wrap; gap:12px;
     margin-top:16px; font-size:12px; letter-spacing:0.1em; color:var(--paper-dim);
   }
+  /* ---- optional photo attach ----
+     The visitor's photo is downscaled and re-encoded in their own browser,
+     uploaded to imgbb with a free API key, and ONLY the link is stored in
+     Firestore. The key is public by nature (it ships in this file); the worst
+     anyone can do is upload junk to the imgbb account — delete it there, and
+     rotate the key in IMGBB_KEY in the module script. */
+  #contact .msg-photo-btn{
+    background:none; border:0; border-bottom:1px dashed rgba(28,28,30,0.35);
+    padding:2px 0; margin-right:8px; cursor:pointer;
+    font-family:var(--serif-en); font-size:12px; letter-spacing:0.1em;
+    color:var(--paper-dim); transition:color 0.25s, border-color 0.25s;
+  }
+  #contact .msg-photo-btn:hover{ color:var(--ink); border-color:var(--accent); }
+  #contact .msg-photo-preview{
+    display:flex; align-items:flex-start; gap:10px; margin-top:14px;
+  }
+  #contact .msg-photo-preview[hidden]{ display:none; }
+  #contact .msg-photo-preview img{
+    width:76px; height:76px; object-fit:cover;
+    border:1px solid var(--line); background:rgba(28,28,30,0.04);
+  }
+  #contact .msg-photo-preview button{
+    background:none; border:0; cursor:pointer; padding:4px;
+    font-family:var(--serif-en); font-size:16px; line-height:1; color:var(--paper-dim);
+  }
+  #contact .msg-photo-preview button:hover{ color:var(--accent); }
   /* ---- hold to send ----
      Ported from React Bits' <HoldButton /> to plain HTML/CSS/JS (the site has
      no React) and restyled to match: sharp corners, hairline border, ink fill
@@ -842,8 +869,20 @@
 
       <form id="msgForm" class="msg-form" autocomplete="off">
         <input type="text" name="website" id="msgHp" class="hp" tabindex="-1" aria-hidden="true">
+        <!-- kept off-screen on purpose: opening it programmatically is fine,
+             but a visible file input would clash with the TV-panel styling -->
+        <input type="file" id="msgPhoto" accept="image/*" hidden aria-hidden="true" tabindex="-1">
         <textarea id="msgText" maxlength="500" required data-lenis-prevent aria-label="message"></textarea>
+        <!-- optional photo: compressed in the browser, uploaded to imgbb, and
+             only the resulting link is written into the message document -->
+        <div class="msg-photo-preview" id="msgPhotoPreview" hidden>
+          <img id="msgPhotoThumb" alt="">
+          <button type="button" id="msgPhotoClear" aria-label="remove photo">×</button>
+        </div>
         <div class="msg-foot">
+          <button type="button" class="msg-photo-btn" id="msgPhotoBtn">
+            <span data-lang="ja" class="active">＋ 写真を添える</span><span data-lang="en">＋ attach a photo</span>
+          </button>
           <span id="msgCount">0 / 500</span>
           <button type="button" class="hold-button" id="msgSend" aria-describedby="msgHint">
             <span class="hold-button__label">
@@ -2991,6 +3030,75 @@ animate();
 
     box.addEventListener('input', () => { count.textContent = box.value.length + ' / 500'; });
 
+    // ---- optional photo ---------------------------------------------------
+    // picked photo -> downscaled + re-encoded JPEG in the browser (which also
+    // strips EXIF, i.e. location tags) -> uploaded to imgbb with the site
+    // owner's free key -> ONLY the resulting link goes into the Firestore doc.
+    // Rotate the key by editing IMGBB_KEY; delete stray uploads in the imgbb
+    // dashboard.
+    const IMGBB_KEY = '7cf68a37ae2b51880a2a6ed0457c3213';
+    const photoBtn     = document.getElementById('msgPhotoBtn');
+    const photoInput   = document.getElementById('msgPhoto');
+    const photoPreview = document.getElementById('msgPhotoPreview');
+    const photoThumb   = document.getElementById('msgPhotoThumb');
+    const photoClear   = document.getElementById('msgPhotoClear');
+    let pendingPhoto = null;      // the compressed Blob ready for upload
+    let pendingThumbURL = null;   // object URL for the little preview
+
+    function clearPendingPhoto(){
+      if (pendingThumbURL) URL.revokeObjectURL(pendingThumbURL);
+      pendingPhoto = null; pendingThumbURL = null;
+      photoPreview.hidden = true;
+      photoInput.value = '';
+    }
+
+    async function compressPhoto(file){
+      // a phone photo becomes a ~150KB JPEG inside a 1280px box, well under
+      // imgbb's limits and quick enough for mobile data
+      const MAX = 1280, QUALITY = 0.82;
+      const bitmap = await createImageBitmap(file);
+      const scale = Math.min(1, MAX / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width  = Math.max(1, Math.round(bitmap.width  * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      bitmap.close();
+      return await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', QUALITY));
+    }
+
+    photoBtn.addEventListener('click', () => photoInput.click());
+    photoInput.addEventListener('change', async () => {
+      const file = photoInput.files && photoInput.files[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) {
+        say('画像ファイルだけだよ。', 'images only.');
+        photoInput.value = '';
+        return;
+      }
+      try {
+        const blob = await compressPhoto(file);
+        if (pendingThumbURL) URL.revokeObjectURL(pendingThumbURL);
+        pendingPhoto = blob;
+        pendingThumbURL = URL.createObjectURL(blob);
+        photoThumb.src = pendingThumbURL;
+        photoPreview.hidden = false;
+      } catch (err) {
+        console.warn('photo preview failed', err);
+        say('その画像は開けなかった。', "couldn't read that image.");
+        photoInput.value = '';
+      }
+    });
+    photoClear.addEventListener('click', clearPendingPhoto);
+
+    async function uploadPhoto(blob){
+      const body = new FormData();
+      body.append('image', blob, 'photo.jpg');
+      const res = await fetch('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, { method: 'POST', body });
+      const data = await res.json();
+      if (!data || !data.success || !data.data || !data.data.url) throw new Error('imgbb rejected the upload');
+      return data.data.url;
+    }
+
     // checked before the fill even starts, so you never hold for nothing
     function canSend(){
       if (!box.value.trim()) { say('先に何か書いてね。', 'write something first.'); return false; }
@@ -3010,7 +3118,22 @@ animate();
       if (hp.value) { box.value = ''; count.textContent = '0 / 500'; say('送信しました!', 'sent!'); return true; }
 
       try {
-        await addDoc(collection(db, 'messages'), { text: text, createdAt: serverTimestamp() });
+        // photo first: if the upload fails, the text stays in the box and
+        // nothing is written, so the visitor can just try again
+        let photoURL = null;
+        if (pendingPhoto) {
+          say('写真を送信中…', 'sending the photo…');
+          try {
+            photoURL = await uploadPhoto(pendingPhoto);
+          } catch (err) {
+            console.warn('photo upload failed', err);
+            say('写真が送れなかった。もう一度試して。', "the photo didn't upload, try again.");
+            return false;
+          }
+        }
+        const doc = { text: text, createdAt: serverTimestamp() };
+        if (photoURL) doc.photo = photoURL;
+        await addDoc(collection(db, 'messages'), doc);
       } catch (err) {
         console.warn('message failed', err);
         say('送信できませんでした。', "didn't go through, try again.");
@@ -3028,6 +3151,7 @@ animate();
       box.value = '';
       box.getAnimations().forEach(a => a.cancel());
       count.textContent = '0 / 500';
+      clearPendingPhoto();
       say('送信しました!', 'sent!');
       return true;
     }
