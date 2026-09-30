@@ -182,9 +182,6 @@
   @media (max-width: 760px){
     .manual-toggle{ bottom:34px; right:24px; }
     #manualPanel{ right:24px; bottom:76px; width:min(260px, 62vw); }
-    /* the centered closing line and the right-aligned toggle share the
-       bottom edge and collide on narrow screens, so lift the closing line */
-    #flowerBed footer{ bottom:44px; }
   }
 
   /* hairline scroll progress along the very top. It's in the same list of
@@ -382,25 +379,122 @@
   #contact .board{ margin-top: 14vh; }
   #contact .msg-form textarea{
     display:block; width:100%; min-height:150px; resize:vertical;
-    background:none; border:0; outline:none; border-radius:0;
+    background: rgba(28,28,30,0.035); border:0; outline:none; border-radius:0;
     border-top:1px solid var(--line); border-bottom:1px solid var(--line);
-    padding:22px 4px;
+    padding:22px 14px;
     font-family:var(--serif-jp); font-size:16px; line-height:1.9; color:var(--ink);
     transition: background 0.25s;
   }
-  #contact .msg-form textarea:focus{ background: rgba(28,28,30,0.035); }
+  #contact .msg-form textarea:focus{ background: rgba(28,28,30,0.06); }
   #contact .msg-foot{
     display:flex; justify-content:space-between; align-items:center;
     margin-top:16px; font-size:12px; letter-spacing:0.1em; color:var(--paper-dim);
   }
-  #contact .msg-form button{
-    background:none; border:1px solid var(--line); border-radius:0;
-    padding:10px 22px; cursor:pointer;
-    font-family:var(--sans); font-size:12px; letter-spacing:0.12em; color:var(--ink);
-    transition: color 0.25s, border-color 0.25s;
+  /* ---- hold to send ----
+     Ported from React Bits' <HoldButton /> to plain HTML/CSS/JS (the site has
+     no React) and restyled to match: sharp corners, hairline border, ink fill
+     that rises left to right with a small wave on its edge, paper-coloured
+     text inside the fill, no glow. The behaviour lives in initHoldButton()
+     in the module script at the bottom. */
+  .hold-button{
+    --hb-radius:0px;
+    --hb-fill:var(--ink);
+    --hb-text:var(--ink);
+    --hb-fill-text:var(--paper);
+    --hb-hold:1000ms;
+    --hb-release:220ms;
+    --hb-press:0.985;
+    --hb-wave:8px;
+    --hb-w:0px; --hb-h:0px; --hb-cycles:0.9; --hb-p:0;
+    --hb-ease-out:cubic-bezier(0.23, 1, 0.32, 1);
+
+    position:relative; display:inline-grid; place-items:center; isolation:isolate;
+    margin:0; height:40px; padding:0 26px;
+    border:1px solid var(--line); border-radius:var(--hb-radius);
+    background:transparent; color:var(--hb-text);
+    font-family:var(--sans); font-size:12px; font-weight:400;
+    letter-spacing:0.12em; line-height:1;
+    cursor:pointer;
+    user-select:none; -webkit-user-select:none; -webkit-touch-callout:none;
+    -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+    transition: transform 160ms var(--hb-ease-out), border-color 0.25s ease;
   }
-  #contact .msg-form button:hover{ color:var(--accent); border-color:var(--accent); }
-  #contact .msg-form button:disabled{ opacity:0.4; cursor:default; }
+  @media (hover:hover) and (pointer:fine){
+    .hold-button:hover{ border-color:var(--accent); }
+  }
+  .hold-button[data-phase='holding'][data-input='pointer']{ transform:scale(var(--hb-press)); }
+
+  .hold-button__label{ position:relative; z-index:2; display:grid; place-items:center; }
+  .hold-button__label > span{
+    grid-area:1 / 1; display:inline-flex; align-items:center; white-space:nowrap;
+    transition: opacity 200ms ease, filter 200ms ease;
+  }
+  .hold-button__done{ opacity:0; filter:blur(2px); }
+  .hold-button[data-phase='done'] .hold-button__idle{ opacity:0; filter:blur(2px); }
+  .hold-button[data-phase='done'] .hold-button__done{ opacity:1; filter:blur(0); }
+
+  /* the clip holds two copies of the label in the inverted colour, revealed
+     only where the fill has reached, so the text flips as the edge crosses it */
+  .hold-button__clip{
+    position:absolute; inset:0; z-index:3; pointer-events:none;
+    clip-path:inset(0 round var(--hb-radius));
+  }
+  .hold-button__fill, .hold-button__crest{
+    position:absolute; inset:0; display:grid; place-items:center;
+    background:var(--hb-fill); color:var(--hb-fill-text);
+  }
+  .hold-button__fill{
+    clip-path:inset(0 calc((1 - var(--hb-p)) * (100% + 0.75 * var(--hb-wave)) - var(--hb-p) * 0.25 * var(--hb-wave)) 0 0);
+  }
+  .hold-button__crest{
+    -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='200' viewBox='0 0 20 200' preserveAspectRatio='none'%3E%3Cpath d='M0 0H10C18 8 18 25.3 10 33.3S2 58.7 10 66.7S18 92 10 100S2 125.3 10 133.3S18 158.7 10 166.7S2 192 10 200H0Z'/%3E%3C/svg%3E");
+            mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='200' viewBox='0 0 20 200' preserveAspectRatio='none'%3E%3Cpath d='M0 0H10C18 8 18 25.3 10 33.3S2 58.7 10 66.7S18 92 10 100S2 125.3 10 133.3S18 158.7 10 166.7S2 192 10 200H0Z'/%3E%3C/svg%3E");
+    -webkit-mask-repeat:repeat-y; mask-repeat:repeat-y;
+    -webkit-mask-size:var(--hb-wave) calc(var(--hb-h) * 2); mask-size:var(--hb-wave) calc(var(--hb-h) * 2);
+    -webkit-mask-position-x:calc(-1 * var(--hb-wave) + var(--hb-p) * (var(--hb-w) + var(--hb-wave)));
+            mask-position-x:calc(-1 * var(--hb-wave) + var(--hb-p) * (var(--hb-w) + var(--hb-wave)));
+    -webkit-mask-position-y:calc(-1 * var(--hb-p) * var(--hb-cycles) * var(--hb-h));
+            mask-position-y:calc(-1 * var(--hb-p) * var(--hb-cycles) * var(--hb-h));
+  }
+  .hold-button__sr{
+    position:absolute; width:1px; height:1px; overflow:hidden;
+    clip-path:inset(50%); white-space:nowrap;
+  }
+
+  /* "look here" dot in the flower's red: on the nav link and the box's label */
+  nav.side a[href="#board"]::after,
+  #board .field-label::before{
+    content:''; display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:#e0303f; vertical-align:1px;
+    animation: ping 2.6s ease-out infinite;
+  }
+  nav.side a[href="#board"]::after{ margin-left:12px; }
+  #board .field-label::before{ margin-right:10px; }
+  @keyframes ping{
+    0%   { box-shadow:0 0 0 0 rgba(224,48,63,0.55); }
+    70%,100%{ box-shadow:0 0 0 9px rgba(224,48,63,0); }
+  }
+
+  /* under the message box: a nudge toward the flower at the bottom */
+  #contact .surprise{ margin-top:18vh; text-align:center; }
+  #contact .surprise p{
+    margin:0; font-family:var(--serif-en); font-style:italic;
+    font-size:17px; letter-spacing:0.02em; color:var(--paper-dim);
+  }
+  #contact .surprise [data-lang="ja"] p{
+    font-family:var(--serif-jp); font-style:normal; font-size:14px; letter-spacing:0.08em;
+  }
+  #contact .surprise .drip{
+    display:block; width:1px; height:64px; margin:26px auto 0;
+    background:linear-gradient(to bottom, var(--ink), rgba(28,28,30,0));
+    transform-origin:top; animation: drip 2.6s cubic-bezier(.5,0,.2,1) infinite;
+  }
+  @keyframes drip{
+    0%  { transform:scaleY(0); opacity:1; }
+    60% { transform:scaleY(1); opacity:1; }
+    100%{ transform:scaleY(1); opacity:0; }
+  }
+
   #contact #msgStatus{
     margin:14px 0 0; min-height:1em;
     font-size:12px; letter-spacing:0.08em; color:var(--paper-dim);
@@ -414,9 +508,17 @@
     #contact .row, #projects .row{ grid-template-columns: 1fr; gap: 6px; }
     #projects{ padding: 12vh 7vw 2vh; }
 
-    /* the fixed side nav would sit on top of the text on a phone, so it
-       steps aside there; the corner controls and the flower stay */
-    nav.side{ display:none; }
+    /* the full side nav would sit on top of the text on a phone, so only the
+       message-box link stays, tucked in above "Bulacan" */
+    nav.side{ top:auto; bottom:84px; left:24px; width:auto; height:auto; padding:0; }
+    nav.side a{ display:none; margin:0; }
+    nav.side a[href="#board"]{ display:block; }
+    nav.side a::before{ display:none; }
+    /* it's a nudge from the hero; once you've scrolled past, it would just
+       float over the paragraphs, so it fades out */
+    nav.side{ transition: color 0.35s ease, opacity 0.35s ease; }
+    body.past-hero nav.side{ opacity:0; }
+    body.past-hero nav.side a{ pointer-events:none; }
     .kv-title{ left:24px; }
     .kv-onair{ left:24px; }
     .lang-toggle{ right:24px; }
@@ -424,6 +526,15 @@
 
   @media (prefers-reduced-motion: reduce){
     .marquee-layer .track{ animation:none; }
+    nav.side a[href="#board"]::after, #board .field-label::before,
+    #contact .surprise .drip{ animation:none; }
+    .hold-button{ transition: border-color 0.25s ease; transform:none !important; }
+    .hold-button__fill{ clip-path:inset(0); opacity:0; transition: opacity var(--hb-release) ease; }
+    .hold-button__crest{ display:none; }
+    .hold-button[data-phase='holding'] .hold-button__fill,
+    .hold-button[data-phase='sending'] .hold-button__fill,
+    .hold-button[data-phase='done'] .hold-button__fill{ opacity:1; transition: opacity var(--hb-hold) linear; }
+    .hold-button__label > span{ transition: opacity 200ms ease; filter:none !important; }
     #splash, #splash .quote, #page{ transition:none; animation:none; }
     #splash .quote{ opacity:1; transform:none; }
   }
@@ -473,6 +584,13 @@
     font-size:12px; letter-spacing:0.08em;
     color: rgba(239,236,230,0.55);
     opacity:0;                     /* JS brings this in with the full bloom */
+  }
+  /* The centred closing line and the right-aligned "manual mode" toggle share
+     the bottom edge and collided on narrow screens. An override for this used
+     to sit higher up the file, but it lost to the base rule above on source
+     order, so it lives here, after it. */
+  @media (max-width: 760px){
+    #flowerBed footer{ bottom:44px; }
   }
 </style>
 </head>
@@ -685,12 +803,31 @@
         <textarea id="msgText" maxlength="500" required data-lenis-prevent aria-label="message"></textarea>
         <div class="msg-foot">
           <span id="msgCount">0 / 500</span>
-          <button type="submit" id="msgSend">
-            <span data-lang="ja" class="active">送信</span><span data-lang="en">send</span>
+          <button type="button" class="hold-button" id="msgSend" aria-describedby="msgHint">
+            <span class="hold-button__label">
+              <span class="hold-button__idle">
+                <span data-lang="ja" class="active">長押しで送信</span><span data-lang="en">hold to send</span>
+              </span>
+              <span class="hold-button__done">
+                <span data-lang="ja" class="active">送信しました</span><span data-lang="en">sent</span>
+              </span>
+            </span>
+            <span class="hold-button__clip" aria-hidden="true">
+              <span class="hold-button__fill"></span>
+              <span class="hold-button__crest"></span>
+            </span>
+            <span id="msgHint" class="hold-button__sr">Press and hold for one second to send</span>
           </button>
         </div>
         <p id="msgStatus" aria-live="polite"></p>
       </form>
+    </div>
+
+    <!-- nudge toward the flower at the very bottom of the page -->
+    <div class="surprise">
+      <div data-lang="ja" class="active"><p>下にスクロールしてみて。サプライズがあるよ :p</p></div>
+      <div data-lang="en"><p>scroll down for a surprise :p</p></div>
+      <span class="drip" aria-hidden="true"></span>
     </div>
   </section>
 
@@ -784,6 +921,7 @@
       if (r.top <= mid && r.bottom > mid) current = i;
     });
     navLinks.forEach((a, i) => a.classList.toggle('current', i === current));
+    document.body.classList.toggle('past-hero', window.scrollY > window.innerHeight * 0.6);
   }
   lenis.on('scroll', updateChrome);
   window.addEventListener('resize', updateChrome);
@@ -986,7 +1124,7 @@
     try {
       const targets = document.querySelectorAll(
         '#intro .lead > div, #intro .prose p, #projects .blurb, #projects .row, ' +
-        '#contact .blurb, #contact .row, #board .msg-form');
+        '#contact .blurb, #contact .row, #board .msg-form, #contact .surprise');
       const io = new IntersectionObserver((entries) => {
         let n = 0;
         entries.forEach(entry => {
@@ -2119,7 +2257,7 @@ function chromeProbeY(element) {
   // the nav is a full-height column with the links down at the bottom, so
   // measure the links themselves rather than the whole empty column
   if (element.tagName === 'NAV') {
-    const links = element.querySelectorAll('a');
+    const links = [...element.querySelectorAll('a')].filter(a => a.offsetParent !== null);
     if (links.length) {
       return (links[0].getBoundingClientRect().top +
               links[links.length - 1].getBoundingClientRect().bottom) / 2;
@@ -2574,12 +2712,12 @@ animate();
 
     const db = getFirestore(initializeApp(firebaseConfig));
 
-    const form   = document.getElementById('msgForm');
     const box    = document.getElementById('msgText');
     const count  = document.getElementById('msgCount');
     const status = document.getElementById('msgStatus');
     const send   = document.getElementById('msgSend');
     const hp     = document.getElementById('msgHp');
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     const COOLDOWN_MS = 30000;   // one message per 30s per browser (a speed bump, not real security)
     let lastSent = 0;
@@ -2595,47 +2733,210 @@ animate();
 
     box.addEventListener('input', () => { count.textContent = box.value.length + ' / 500'; });
 
-    // ctrl/cmd + enter sends, like most chat boxes
-    box.addEventListener('keydown', (e) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') form.requestSubmit();
-    });
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const text = box.value.trim();
-      if (!text) return;
-
-      // bots fill the hidden field: pretend it worked, send nothing
-      if (hp.value) { box.value = ''; say('送信しました!', 'sent!'); return; }
-
+    // checked before the fill even starts, so you never hold for nothing
+    function canSend(){
+      if (!box.value.trim()) { say('先に何か書いてね。', 'write something first.'); return false; }
       if (Date.now() - lastSent < COOLDOWN_MS) {
         say('少し待ってからもう一度。', 'give it a few seconds first.');
-        return;
+        return false;
       }
+      return true;
+    }
 
-      send.disabled = true;
+    // resolves true if the message went out (the button shows "sent" only then)
+    async function sendMessage(){
+      const text = box.value.trim();
+      if (!text) return false;
+
+      // bots fill the hidden field: pretend it worked, send nothing
+      if (hp.value) { box.value = ''; count.textContent = '0 / 500'; say('送信しました!', 'sent!'); return true; }
+
       try {
-        await addDoc(collection(db, 'messages'), {
-          text: text,
-          createdAt: serverTimestamp(),
-        });
-        lastSent = Date.now();
-        if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-          await box.animate([
-            { color: 'rgb(28,28,30)',   textShadow: '0 0 0 rgba(28,28,30,0.55)' },
-            { color: 'rgba(28,28,30,0)', textShadow: '0 0 16px rgba(28,28,30,0)' },
-          ], { duration: 700, easing: 'ease-in', fill: 'forwards' }).finished;
-        }
-        box.value = '';
-        box.getAnimations().forEach(a => a.cancel());
-        count.textContent = '0 / 500';
-        say('送信しました!', 'sent!');
+        await addDoc(collection(db, 'messages'), { text: text, createdAt: serverTimestamp() });
       } catch (err) {
         console.warn('message failed', err);
         say('送信できませんでした。', "didn't go through, try again.");
-      } finally {
-        send.disabled = false;
+        return false;
       }
+
+      lastSent = Date.now();
+      if (!reduceMotion) {
+        // the text blurs away instead of just vanishing
+        await box.animate([
+          { color: 'rgb(28,28,30)',    textShadow: '0 0 0 rgba(28,28,30,0.55)' },
+          { color: 'rgba(28,28,30,0)', textShadow: '0 0 16px rgba(28,28,30,0)' },
+        ], { duration: 700, easing: 'ease-in', fill: 'forwards' }).finished;
+      }
+      box.value = '';
+      box.getAnimations().forEach(a => a.cancel());
+      count.textContent = '0 / 500';
+      say('送信しました!', 'sent!');
+      return true;
+    }
+
+    /* ---------------------------------------------------------------------
+       HOLD BUTTON — a plain-JS port of React Bits' <HoldButton />.
+       Press and hold: the fill rises at a constant speed, and only when it
+       completes does onHold() run. Let go early and it drains back. Works
+       with mouse, touch, and the keyboard (hold Space or Enter).
+       Phases: idle -> holding -> sending -> done -> idle
+       --------------------------------------------------------------------- */
+    function initHoldButton(button, opts){
+      const { holdTime = 1000, releaseTime = 220, resetAfter = 1600,
+              wave = 8, pressScale = 0.985, canBegin, onHold, onTap } = opts;
+      const TAP_MS = 250, HIT_PAD = 10;
+      const LINEAR = t => t;
+      const EASE_OUT = t => 1 - Math.pow(1 - t, 3);
+
+      let phase = 'idle', input = null;
+      const gesture = { pointerId: null, start: 0, rect: null };
+      const timers = { complete: 0, reset: 0 };
+      const motion = { raf: 0, p: 0, from: 0, to: 0, start: 0 };
+
+      button.style.setProperty('--hb-hold', holdTime + 'ms');
+      button.style.setProperty('--hb-release', releaseTime + 'ms');
+      button.style.setProperty('--hb-cycles', holdTime / 1100);
+      button.style.setProperty('--hb-wave', wave + 'px');
+      button.style.setProperty('--hb-press', pressScale);
+
+      // the inverted-colour label copies live inside the fill and the wave
+      const label = button.querySelector('.hold-button__label');
+      button.querySelectorAll('.hold-button__fill, .hold-button__crest').forEach(layer => {
+        const copy = label.cloneNode(true);
+        copy.classList.add('hold-button__label--fill');
+        layer.appendChild(copy);
+      });
+      const idleLabel = label.querySelector('.hold-button__idle');
+      const doneLabel = label.querySelector('.hold-button__done');
+
+      function go(next, kind = null){
+        phase = next; input = kind;
+        button.dataset.phase = next;
+        if (kind) button.dataset.input = kind; else delete button.dataset.input;
+        idleLabel.setAttribute('aria-hidden', String(next === 'done'));
+        doneLabel.setAttribute('aria-hidden', String(next !== 'done'));
+      }
+      go('idle');
+
+      const clearTimers = () => { clearTimeout(timers.complete); clearTimeout(timers.reset); };
+
+      function drive(to, duration, ease){
+        cancelAnimationFrame(motion.raf);
+        motion.from = motion.p; motion.to = to; motion.start = performance.now();
+        const step = (now) => {
+          const t = duration > 0 ? Math.min(1, (now - motion.start) / duration) : 1;
+          motion.p = motion.from + (motion.to - motion.from) * ease(t);
+          button.style.setProperty('--hb-p', motion.p.toFixed(4));
+          if (t < 1) { motion.raf = requestAnimationFrame(step); return; }
+          motion.raf = 0;
+          if (motion.to === 1) complete();
+        };
+        motion.raf = requestAnimationFrame(step);
+      }
+
+      function reset(){ go('idle'); drive(0, releaseTime, EASE_OUT); }
+
+      function complete(){
+        if (phase !== 'holding') return;
+        if (performance.now() - gesture.start < holdTime - 50) return;
+        clearTimers();
+        go('sending', input);
+        Promise.resolve(onHold()).then((ok) => {
+          if (!ok) { reset(); return; }
+          go('done', input);
+          if (resetAfter > 0) timers.reset = setTimeout(reset, resetAfter);
+        }).catch(reset);
+      }
+
+      function begin(kind){
+        if (phase !== 'idle') return false;
+        if (canBegin && !canBegin()) return false;
+        gesture.start = performance.now();
+        gesture.rect = button.getBoundingClientRect();
+        go('holding', kind);
+        drive(1, holdTime, LINEAR);
+        timers.complete = setTimeout(complete, holdTime + 100);
+        return true;
+      }
+
+      function release({ drifted = false } = {}){
+        if (phase !== 'holding') return;
+        clearTimers();
+        const held = performance.now() - gesture.start;
+        go('idle');
+        drive(0, releaseTime, EASE_OUT);
+        if (!drifted && held < TAP_MS && onTap) onTap();
+      }
+
+      function endPointer(e, options){
+        if (e.pointerId !== gesture.pointerId) return;
+        gesture.pointerId = null;
+        try { if (button.hasPointerCapture(e.pointerId)) button.releasePointerCapture(e.pointerId); } catch (err) {}
+        release(options);
+      }
+
+      button.addEventListener('pointerdown', (e) => {
+        if (e.button !== 0 || !e.isPrimary || gesture.pointerId !== null) return;
+        if (!begin('pointer')) return;
+        gesture.pointerId = e.pointerId;
+        try { button.setPointerCapture(e.pointerId); } catch (err) {}
+      });
+      button.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== gesture.pointerId || !gesture.rect) return;
+        const r = gesture.rect;
+        const out = e.clientX < r.left - HIT_PAD || e.clientX > r.right + HIT_PAD ||
+                    e.clientY < r.top - HIT_PAD  || e.clientY > r.bottom + HIT_PAD;
+        if (out) endPointer(e, { drifted: true });        // dragged off the button: cancel
+      });
+      button.addEventListener('pointerup', (e) => endPointer(e));
+      button.addEventListener('pointercancel', (e) => endPointer(e, { drifted: true }));
+      button.addEventListener('lostpointercapture', (e) => endPointer(e, { drifted: true }));
+      button.addEventListener('pointerleave', (e) => { if (e.pointerType !== 'touch') endPointer(e, { drifted: true }); });
+      button.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      button.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') { if (input === 'key') release({ drifted: true }); return; }
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!e.repeat) begin('key'); }
+      });
+      button.addEventListener('keyup', (e) => {
+        if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (input === 'key') release(); }
+      });
+      button.addEventListener('blur', () => { if (input === 'key') release({ drifted: true }); });
+
+      // switching tabs or windows mid-hold cancels it
+      window.addEventListener('blur', () => release({ drifted: true }));
+      document.addEventListener('visibilitychange', () => { if (document.hidden) release({ drifted: true }); });
+
+      // keep the wave's size in step with the button (it changes with the language)
+      const measure = () => {
+        button.style.setProperty('--hb-w', button.clientWidth + 'px');
+        button.style.setProperty('--hb-h', button.clientHeight + 'px');
+      };
+      measure();
+      if ('ResizeObserver' in window) new ResizeObserver(measure).observe(button);
+
+      return {
+        // a fast, automatic fill for the ctrl+enter shortcut: same path, no waiting
+        instant(){
+          if (phase !== 'idle' || (canBegin && !canBegin())) return;
+          gesture.start = performance.now() - holdTime;
+          go('holding', 'key');
+          drive(1, 260, EASE_OUT);
+        },
+      };
+    }
+
+    const holdSend = initHoldButton(send, {
+      holdTime: 1000,
+      resetAfter: 1600,
+      canBegin: canSend,
+      onHold: sendMessage,
+      onTap: () => say('ボタンを押し続けてください。', 'keep holding the button to send.'),
+    });
+
+    // ctrl/cmd + enter is the shortcut: it runs the same fill, just fast
+    box.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); holdSend.instant(); }
     });
   </script>
 
