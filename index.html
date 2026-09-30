@@ -1,12 +1,21 @@
-  <!--this is semi-vibe coded, 09/27/26, i'm thinking of computer science, good luck future me!
-  to anyone reading this, i'm sorry if i ever did you any wrong, i'm still struggling with everything.-->
-
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ja">
+<!--this is semi-vibe coded, 09/27/26, i'm thinking of computer science, good luck future me!
+  to anyone reading this, i'm sorry if i ever did you any wrong, i'm still struggling with everything.-->
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Arkyn</title>  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<title>Arkyn</title>
+<meta name="description" content="kyn's little corner of the internet, with an anonymous message box.">
+<meta name="theme-color" content="#efece6">
+<meta property="og:title" content="Arkyn">
+<meta property="og:description" content="kyn's little corner of the internet, with an anonymous message box.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%231c1c1e'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23e0303f'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Noto+Serif+JP:wght@400;500&display=swap">
+<script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+<noscript><style>#splash{display:none} #page{opacity:1}</style></noscript>
   <script type="importmap">
   {
     "imports": {
@@ -17,8 +26,6 @@
   }
   </script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital@0;1&family=Noto+Serif+JP:wght@400;500&display=swap');
-
   :root{
     --ink:#1c1c1e;
     --paper:#efece6;
@@ -30,6 +37,17 @@
     --sans: Helvetica, Arial, sans-serif;
   }
   *{box-sizing:border-box;}
+
+  /* Lenis' own recommended rules. Without .lenis-stopped, "manual mode" only
+     stops the mouse wheel; the scrollbar and arrow keys could still move the page. */
+  html.lenis, html.lenis body{ height:auto; }
+  .lenis.lenis-smooth{ scroll-behavior:auto !important; }
+  .lenis.lenis-smooth [data-lenis-prevent]{ overscroll-behavior:contain; }
+  .lenis.lenis-stopped{ overflow:hidden; }
+
+  ::selection{ background:var(--accent); color:var(--paper); }
+  :focus-visible{ outline:1px solid var(--accent); outline-offset:4px; }
+  nav.side a:focus-visible, .lang-toggle button:focus-visible, .manual-toggle:focus-visible{ outline-color:currentColor; }
   html,body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
   a{color:inherit;}
 
@@ -37,8 +55,6 @@
   #kv{
     position:relative; width:100%; height:100vh; overflow:hidden;
     display:flex; align-items:stretch;
-  }
-  #kv{
     background: var(--ink); /* placeholder fill until a real hero image goes in */
   }
   #kv .scrim{
@@ -61,6 +77,15 @@
     pointer-events:auto; opacity:0.85; transition:opacity 0.3s;
   }
   nav.side a:hover{ opacity:1; }
+  nav.side a{ position:relative; }
+  /* the small dash that marks which section you're in (set from JS) */
+  nav.side a::before{
+    content:''; position:absolute; left:-26px; top:50%;
+    width:0; height:1px; background:currentColor;
+    transition: width 0.35s ease;
+  }
+  nav.side a.current{ opacity:1; }
+  nav.side a.current::before{ width:16px; }
 
   .lang-toggle{
     position:fixed; top:32px; right:60px; z-index:40;
@@ -154,6 +179,16 @@
        bottom edge and collide on narrow screens, so lift the closing line */
     #flowerBed footer{ bottom:44px; }
   }
+
+  /* hairline scroll progress along the very top. It's in the same list of
+     "pinned chrome" as the nav, so it flips cream/ink by itself. */
+  #progress{
+    position:fixed; top:0; left:0; right:0; height:2px; z-index:60;
+    background:#f2f0ea; transform-origin:0 50%; transform:scaleX(0);
+    pointer-events:none; transition: background 0.35s ease;
+  }
+  #progress.dark{ background:var(--ink); }
+  .kv-onair .clock{ opacity:0.55; margin-left:10px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; }
 
   .kv-jp-caption{
     position:absolute; top:60px; right:80px; z-index:5;
@@ -278,33 +313,33 @@
     background:var(--paper);
     padding: 16vh 6vw 18vh;
   }
-  #contact .eyebrow{
+  #contact .eyebrow, #projects .eyebrow{
     text-align:center; text-transform:uppercase;
     font-size:12px; letter-spacing:0.2em; color:var(--paper-dim);
     margin-bottom: 9vh;
   }
-  #contact .grid{
+  #contact .grid, #projects .grid{
     max-width:1040px; margin:0 auto;
     display:grid;
     grid-template-columns: minmax(190px, 0.8fr) 1.5fr;
     gap: 56px 72px;
     align-items:start;
   }
-  #contact .field-label{
+  #contact .field-label, #projects .field-label{
     text-transform:uppercase;
     font-size:11px; letter-spacing:0.22em; color:var(--paper-dim);
     margin-bottom: 28px;
   }
-  #contact .statement{
+  #contact .statement, #projects .statement{
     font-family:var(--serif-jp); font-size:19px; line-height:2.1;
     color:var(--ink); margin:0;
   }
-  #contact .statement.en{
+  #contact .statement.en, #projects .statement.en{
     font-family:var(--serif-en); font-style:italic; font-size:18px;
   }
 
   /* each row is one link: the whole line is clickable */
-  #contact .row{
+  #contact .row, #projects .row{
     display:grid; grid-template-columns: 150px 1fr; gap:20px;
     align-items:baseline;
     padding: 22px 4px;
@@ -312,19 +347,27 @@
     text-decoration:none; color:inherit;
     transition: background 0.25s;
   }
-  #contact .rows .row:last-child{ border-bottom: 1px solid var(--line); }
-  #contact .platform{ font-size:13px; letter-spacing:0.06em; color:var(--ink); }
-  #contact .handle{
+  #contact .rows .row:last-child, #projects .rows .row:last-child{ border-bottom: 1px solid var(--line); }
+  #contact .platform, #projects .platform{ font-size:13px; letter-spacing:0.06em; color:var(--ink); }
+  #contact .handle, #projects .handle{
     font-size:13px; letter-spacing:0.06em; color:var(--paper-dim);
     transition: color 0.25s;
   }
-  #contact .row:hover{ background: rgba(28,28,30,0.035); }
-  #contact .row:hover .handle{ color:var(--accent); }
+  #contact .row:hover, #projects .row:hover{ background: rgba(28,28,30,0.035); }
+  #contact .row:hover .handle, #projects .row:hover .handle{ color:var(--accent); }
   /* the Discord row isn't a link (usernames aren't linkable), so it shouldn't
      pretend to be one on hover */
-  #contact .row.static{ cursor:default; }
-  #contact .row.static:hover{ background:none; }
-  #contact .row.static:hover .handle{ color:var(--paper-dim); }
+  /* the Discord row copies the username when clicked */
+  #contact .row.copy{ cursor:copy; }
+
+  /* ---- log (prototype): same ruled rows, but they aren't links ---- */
+  #projects{ position:relative; z-index:5; background:var(--paper); padding:16vh 6vw 4vh; min-height:0; }
+  #projects .eyebrow{ margin-bottom:9vh; }
+  #projects .row.static{ cursor:default; }
+  #projects .row.static:hover{ background:none; }
+  #projects .platform{ color:var(--paper-dim); font-variant-numeric:tabular-nums; }
+  #projects .handle, #projects .row.static:hover .handle{ color:var(--ink); }
+  #projects .note{ font-family:var(--serif-en); font-style:italic; font-size:14px; color:var(--paper-dim); margin:22px 4px 0; }
 
 
 
@@ -360,8 +403,22 @@
 
   @media (max-width: 760px){
     #contact{ padding: 12vh 7vw 14vh; }
-    #contact .grid{ grid-template-columns: 1fr; gap: 44px; }
-    #contact .row{ grid-template-columns: 1fr; gap: 6px; }
+    #contact .grid, #projects .grid{ grid-template-columns: 1fr; gap: 44px; }
+    #contact .row, #projects .row{ grid-template-columns: 1fr; gap: 6px; }
+    #projects{ padding: 12vh 7vw 2vh; }
+
+    /* the fixed side nav would sit on top of the text on a phone, so it
+       steps aside there; the corner controls and the flower stay */
+    nav.side{ display:none; }
+    .kv-title{ left:24px; }
+    .kv-onair{ left:24px; }
+    .lang-toggle{ right:24px; }
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .marquee-layer .track{ animation:none; }
+    #splash, #splash .quote, #page{ transition:none; animation:none; }
+    #splash .quote{ opacity:1; transform:none; }
   }
 
   /* ---- flower bed: the scroll runway at the end of the page.
@@ -414,6 +471,8 @@
 </head>
 <body>
 
+  <div id="progress" aria-hidden="true"></div>
+
   <div id="splash">
     <div class="quote">
       <p class="main">好きなことを、好きなだけ。</p>
@@ -430,7 +489,7 @@
 
   <!-- lily canvas: blooms on scroll down, unblooms on scroll up -->
   <div class="kv-title">kyn<br><br></div>
-  <div class="kv-onair">Bulacan</div>
+  <div class="kv-onair">Bulacan<span class="clock" id="clock" aria-hidden="true"></span></div>
 
   <div class="lang-toggle">
     <button id="btn-ja" class="active">JA</button>
@@ -441,6 +500,7 @@
   <nav class="side">
     <a href="#kv">top</a>
     <a href="#intro">about me</a>
+    <a href="#projects">log</a>
     <a href="#contact">talk to me!</a>
     <a href="#board" data-center>send a message anonymously</a>
   </nav>
@@ -520,13 +580,48 @@
   <!-- whatever comes right after #intro will naturally sit on top of the
        now-unblurred tail end of the marquee, then cover it entirely once
        this section's own background kicks in -->
-  <section id="projects" style="min-height:60vh; background:var(--paper); position:relative; z-index:5;">
+  <!-- ---------------- LOG (prototype) ----------------
+       One .row per entry: change the date and both language lines, or copy a
+       whole <div class="row static"> block to add another. Newest on top. -->
+  <section id="projects">
+    <div class="eyebrow">log</div>
+
+    <div class="grid">
+      <div class="blurb">
+        <div class="field-label">recently</div>
+        <div data-lang="ja" class="active">
+          <p class="statement">記録を、綴る。</p>
+        </div>
+        <div data-lang="en">
+          <p class="statement en">writing things down.</p>
+        </div>
+      </div>
+
+      <div class="links">
+        <div class="rows">
+          <div class="row static">
+            <span class="platform">2026.09.30</span>
+            <div class="handle">
+              <div data-lang="ja" class="active">匿名メッセージボックスを追加</div>
+              <div data-lang="en">added an anonymous message box</div>
+            </div>
+          </div>
+          <div class="row static">
+            <span class="platform">2026.09.30</span>
+            <div class="handle">
+              <div data-lang="ja" class="active">ログを始めました</div>
+              <div data-lang="en">started this log</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ---------------- CONTACT ----------------
        Each row is one link — change the href and the visible handle together.
        Discord usernames aren't linkable, so that row is a plain <div> with
-       no href and a .static class that switches off the link hover. -->
+       no href; it copies the username when clicked (data-copy). -->
   <section id="contact">
     <div class="eyebrow">contact</div>
 
@@ -547,7 +642,7 @@
             <span class="platform">Instagram</span>
             <span class="handle">@pinkporschesenjoyer</span>
           </a>
-          <div class="row static">
+          <div class="row copy" role="button" tabindex="0" data-copy="zieliej" aria-label="copy Discord username">
             <span class="platform">Discord</span>
             <span class="handle">zieliej</span>
           </div>
@@ -617,7 +712,23 @@
   });
 
   // Lenis smooth inertia scroll
-  const lenis = new Lenis({ duration: 1.1, smoothWheel: true });
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // If the Lenis file can't load (offline, blocked CDN), fall back to normal
+  // scrolling instead of letting one missing file break the nav, the language
+  // toggle and everything below it.
+  const lenis = window.Lenis
+    ? new Lenis({ duration: 1.1, smoothWheel: !reduceMotion })
+    : {
+        raf(){},
+        on(type, fn){ if (type === 'scroll') window.addEventListener('scroll', fn, { passive: true }); },
+        scrollTo(target, opts = {}){
+          const top = target.getBoundingClientRect().top + window.scrollY + (opts.offset || 0);
+          window.scrollTo({ top, behavior: reduceMotion ? 'auto' : 'smooth' });
+        },
+        stop(){ document.documentElement.style.overflow = 'hidden'; },
+        start(){ document.documentElement.style.overflow = ''; },
+      };
   function raf(time){ lenis.raf(time); requestAnimationFrame(raf); }
   requestAnimationFrame(raf);
 
@@ -645,6 +756,31 @@
   lenis.on('scroll', updateBlur);
   updateBlur();
 
+  // ---- scroll progress hairline + the "you are here" dash in the nav ----
+  const progressBar = document.getElementById('progress');
+  const navLinks = [...document.querySelectorAll('nav.side a[href^="#"]')];
+  const navTargets = navLinks.map(a => document.querySelector(a.getAttribute('href')));
+
+  function updateChrome(){
+    const max = document.documentElement.scrollHeight - window.innerHeight;
+    const p = max > 0 ? Math.min(Math.max(window.scrollY / max, 0), 1) : 0;
+    progressBar.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+
+    // current section = the last one whose box contains the middle of the screen
+    // (the message box sits inside contact, so it wins while you're on it)
+    const mid = window.innerHeight / 2;
+    let current = -1;
+    navTargets.forEach((el, i) => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      if (r.top <= mid && r.bottom > mid) current = i;
+    });
+    navLinks.forEach((a, i) => a.classList.toggle('current', i === current));
+  }
+  lenis.on('scroll', updateChrome);
+  window.addEventListener('resize', updateChrome);
+  updateChrome();
+
   // smooth-scroll the side nav links via Lenis instead of instant jump
   document.querySelectorAll('nav.side a[href^="#"]').forEach(link => {
     link.addEventListener('click', (e) => {
@@ -653,7 +789,7 @@
       if (target) {
         const offset = link.hasAttribute('data-center')
           ? -Math.max(0, (window.innerHeight - target.offsetHeight) / 2) : 0;
-        lenis.scrollTo(target, { duration: 1.4, offset });
+        lenis.scrollTo(target, { duration: 1.4, offset, immediate: reduceMotion });
       }
     });
   });
@@ -668,16 +804,96 @@
   // language toggle — swaps between two pre-written blocks, no live translation
   const btnJa = document.getElementById('btn-ja');
   const btnEn = document.getElementById('btn-en');
-  function setLang(lang){
+  const placeholders = { ja: '匿名で、ひとこと', en: 'say something, anonymously' };
+  const msgBox = document.getElementById('msgText');
+
+  function setLang(lang, save = true){
+    document.documentElement.lang = lang;
     document.querySelectorAll('[data-lang]').forEach(el => {
       el.classList.toggle('active', el.dataset.lang === lang);
     });
     btnJa.classList.toggle('active', lang === 'ja');
     btnEn.classList.toggle('active', lang === 'en');
+    if (msgBox) msgBox.placeholder = placeholders[lang];
+    if (save) { try { localStorage.setItem('lang', lang); } catch (e) {} }
     updateBlur(); // section height may change between languages, recalc immediately
+    updateChrome();
   }
   btnJa.addEventListener('click', () => setLang('ja'));
   btnEn.addEventListener('click', () => setLang('en'));
+
+  // remember the language you picked last time (JA is still the default)
+  let startLang = 'ja';
+  try {
+    const saved = localStorage.getItem('lang');
+    if (saved === 'ja' || saved === 'en') startLang = saved;
+  } catch (e) {}
+  setLang(startLang, false);
+
+  // ---- click the Discord row to copy the username ----
+  document.querySelectorAll('[data-copy]').forEach(row => {
+    const label = row.querySelector('.handle');
+    const original = label.textContent;
+    let timer;
+    async function copy(){
+      const value = row.dataset.copy;
+      try {
+        await navigator.clipboard.writeText(value);
+      } catch (e) {
+        // fallback for browsers/pages where the clipboard API isn't allowed
+        const t = document.createElement('textarea');
+        t.value = value; t.style.position = 'fixed'; t.style.opacity = '0';
+        document.body.appendChild(t); t.select();
+        try { document.execCommand('copy'); } catch (err) {}
+        t.remove();
+      }
+      label.textContent = btnEn.classList.contains('active') ? 'copied' : 'コピーしました';
+      clearTimeout(timer);
+      timer = setTimeout(() => { label.textContent = original; }, 1600);
+    }
+    row.addEventListener('click', copy);
+    row.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); copy(); }
+    });
+  });
+
+  // ---- Bulacan's local time, next to the place name ----
+  const clockEl = document.getElementById('clock');
+  if (clockEl) {
+    const fmt = new Intl.DateTimeFormat('en-GB',
+      { timeZone: 'Asia/Manila', hour: '2-digit', minute: '2-digit', hour12: false });
+    const tick = () => { clockEl.textContent = '· ' + fmt.format(new Date()); };
+    tick();
+    setInterval(tick, 20000);
+  }
+
+  // ---- gentle fade-up as things scroll into view ----
+  // Set up from JS on purpose: with scripts off (or reduced motion on) it is
+  // skipped and everything just stays visible.
+  if (!reduceMotion && 'IntersectionObserver' in window) {
+    try {
+      const targets = document.querySelectorAll(
+        '#intro .lead > div, #intro .prose p, #projects .blurb, #projects .row, ' +
+        '#contact .blurb, #contact .row, #board .msg-form');
+      const io = new IntersectionObserver((entries) => {
+        let n = 0;
+        entries.forEach(entry => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target;
+          io.unobserve(el);
+          el.style.opacity = '';
+          el.animate(
+            [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }],
+            { duration: 900, delay: (n++) * 70, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'backwards' });
+        });
+      }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+      targets.forEach(el => {
+        if (!el.textContent.trim()) return;      // skip the empty spacer <p>s
+        el.style.opacity = '0';
+        io.observe(el);
+      });
+    } catch (e) { /* if anything above fails, leave the page as it was */ }
+  }
 </script>
 
   <script type="module">
@@ -1783,6 +1999,7 @@ const pinnedChrome = [
   document.querySelector('.kv-title'),
   document.querySelector('.kv-onair'),
   document.querySelector('.lang-toggle'),
+  document.getElementById('progress'),
 ].filter(Boolean);
 const chromeIsInk = new WeakMap();
 
@@ -2256,12 +2473,20 @@ animate();
     let lastSent = 0;
 
     // status lines in whichever language is showing
+    let statusTimer;
     const say = (ja, en) => {
       const isEn = document.getElementById('btn-en').classList.contains('active');
       status.textContent = isEn ? en : ja;
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => { status.textContent = ''; }, 6000);   // don't leave "sent!" hanging
     };
 
     box.addEventListener('input', () => { count.textContent = box.value.length + ' / 500'; });
+
+    // ctrl/cmd + enter sends, like most chat boxes
+    box.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') form.requestSubmit();
+    });
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
