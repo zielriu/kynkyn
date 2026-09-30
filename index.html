@@ -326,6 +326,37 @@
   #contact .row.static:hover .handle{ color:var(--paper-dim); }
 
 
+
+  /* ---- anonymous message box (sits under the contact links) ---- */
+  #contact .board{ margin-top: 14vh; }
+  #contact .msg-form textarea{
+    display:block; width:100%; min-height:150px; resize:vertical;
+    background:none; border:0; outline:none; border-radius:0;
+    border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+    padding:22px 4px;
+    font-family:var(--serif-jp); font-size:16px; line-height:1.9; color:var(--ink);
+    transition: background 0.25s;
+  }
+  #contact .msg-form textarea:focus{ background: rgba(28,28,30,0.035); }
+  #contact .msg-foot{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:16px; font-size:12px; letter-spacing:0.1em; color:var(--paper-dim);
+  }
+  #contact .msg-form button{
+    background:none; border:1px solid var(--line); border-radius:0;
+    padding:10px 22px; cursor:pointer;
+    font-family:var(--sans); font-size:12px; letter-spacing:0.12em; color:var(--ink);
+    transition: color 0.25s, border-color 0.25s;
+  }
+  #contact .msg-form button:hover{ color:var(--accent); border-color:var(--accent); }
+  #contact .msg-form button:disabled{ opacity:0.4; cursor:default; }
+  #contact #msgStatus{
+    margin:14px 0 0; min-height:1em;
+    font-size:12px; letter-spacing:0.08em; color:var(--paper-dim);
+  }
+  /* honeypot: real people never see or fill this, simple bots do */
+  #contact .hp{ position:absolute; left:-9999px; width:1px; height:1px; opacity:0; }
+
   @media (max-width: 760px){
     #contact{ padding: 12vh 7vw 14vh; }
     #contact .grid{ grid-template-columns: 1fr; gap: 44px; }
@@ -525,6 +556,33 @@
           </a>
         </div>
       </div>
+    </div>
+
+    <!-- ---------------- ANONYMOUS MESSAGE BOX ----------------
+         Messages go to Firestore (see the module script at the bottom).
+         Nobody can read them from the site; read them in the Firebase console. -->
+    <div class="grid board">
+      <div class="blurb">
+        <div class="field-label">message box</div>
+        <div data-lang="ja" class="active">
+          <p class="statement">匿名でメッセージを送れます。</p>
+        </div>
+        <div data-lang="en">
+          <p class="statement en">send me something, anonymously.</p>
+        </div>
+      </div>
+
+      <form id="msgForm" class="msg-form" autocomplete="off">
+        <input type="text" name="website" id="msgHp" class="hp" tabindex="-1" aria-hidden="true">
+        <textarea id="msgText" maxlength="500" required data-lenis-prevent aria-label="message"></textarea>
+        <div class="msg-foot">
+          <span id="msgCount">0 / 500</span>
+          <button type="submit" id="msgSend">
+            <span data-lang="ja" class="active">送信</span><span data-lang="en">send</span>
+          </button>
+        </div>
+        <p id="msgStatus" aria-live="polite"></p>
+      </form>
     </div>
   </section>
 
@@ -2152,6 +2210,77 @@ function animate() {
 window.addEventListener('resize', resize);
 resize();
 animate();
+  </script>
+
+
+  <!-- ---------------- MESSAGE BOX -> FIREBASE ----------------
+       The firebaseConfig values are public by design; what actually protects
+       the database is the Firestore rules (anyone may add a short message,
+       nobody may read/edit/delete from the site). -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+    import { getFirestore, collection, addDoc, serverTimestamp }
+      from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyC31ush40R5-WS-qdEvYnOXCtQrbo3OW6U",
+      authDomain: "message-board-2c1fb.firebaseapp.com",
+      projectId: "message-board-2c1fb",
+      storageBucket: "message-board-2c1fb.firebasestorage.app",
+      messagingSenderId: "493409189577",
+      appId: "1:493409189577:web:340e355bfc745710469718"
+    };
+
+    const db = getFirestore(initializeApp(firebaseConfig));
+
+    const form   = document.getElementById('msgForm');
+    const box    = document.getElementById('msgText');
+    const count  = document.getElementById('msgCount');
+    const status = document.getElementById('msgStatus');
+    const send   = document.getElementById('msgSend');
+    const hp     = document.getElementById('msgHp');
+
+    const COOLDOWN_MS = 30000;   // one message per 30s per browser (a speed bump, not real security)
+    let lastSent = 0;
+
+    // status lines in whichever language is showing
+    const say = (ja, en) => {
+      const isEn = document.getElementById('btn-en').classList.contains('active');
+      status.textContent = isEn ? en : ja;
+    };
+
+    box.addEventListener('input', () => { count.textContent = box.value.length + ' / 500'; });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = box.value.trim();
+      if (!text) return;
+
+      // bots fill the hidden field: pretend it worked, send nothing
+      if (hp.value) { box.value = ''; say('送信しました!', 'sent!'); return; }
+
+      if (Date.now() - lastSent < COOLDOWN_MS) {
+        say('少し待ってからもう一度。', 'give it a few seconds first.');
+        return;
+      }
+
+      send.disabled = true;
+      try {
+        await addDoc(collection(db, 'messages'), {
+          text: text,
+          createdAt: serverTimestamp(),
+        });
+        lastSent = Date.now();
+        box.value = '';
+        count.textContent = '0 / 500';
+        say('送信しました!', 'sent!');
+      } catch (err) {
+        console.warn('message failed', err);
+        say('送信できませんでした。', "didn't go through, try again.");
+      } finally {
+        send.disabled = false;
+      }
+    });
   </script>
 
 
