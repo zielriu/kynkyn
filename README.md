@@ -1,11 +1,4 @@
-# Arkyn
-
-kyn's personal website, hosted on GitHub Pages. A single `index.html`, plus a
-`404.html` in the same style.
-
-It has a scroll-driven 3D flower at the bottom, a JA / EN toggle, and an
-anonymous message box (messages are stored in Firebase Firestore and can only be
-read from the Firebase console).
+the start of my own little world
 
 ## Credits
 
