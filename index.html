@@ -55,6 +55,7 @@
     transition: color 0.35s ease;
   }
   nav.side a{
+    white-space:nowrap;
     display:block; text-decoration:none; font-family:var(--sans);
     font-size:12px; letter-spacing:0.12em; margin-bottom:16px;
     pointer-events:auto; opacity:0.85; transition:opacity 0.3s;
@@ -394,7 +395,10 @@
      none (inherited from #flowerBed/.stage) so a finger drag still scrolls
      the page like normal, instead of getting eaten by camera dragging */
   @media (min-width: 761px){
-    #flowerBed canvas{ pointer-events:auto; cursor:grab; }
+    /* .live is toggled by JS only once the stage has faded in. Before that the
+       canvas is invisible but still full-screen and above #contact, so it
+       would swallow every click meant for the message box. */
+    #flowerBed .stage.live canvas{ pointer-events:auto; cursor:grab; }
   }
   /* the closing line sits on the very bottom of the last screen. It rides
      in with the full bloom, so it never floats over the growing flower. */
@@ -438,6 +442,7 @@
     <a href="#kv">top</a>
     <a href="#intro">about me</a>
     <a href="#contact">talk to me!</a>
+    <a href="#board" data-center>send a message anonymously</a>
   </nav>
 
   <button class="manual-toggle" id="manualToggle" aria-pressed="false">click me for manual mode</button>
@@ -561,7 +566,7 @@
     <!-- ---------------- ANONYMOUS MESSAGE BOX ----------------
          Messages go to Firestore (see the module script at the bottom).
          Nobody can read them from the site; read them in the Firebase console. -->
-    <div class="grid board">
+    <div class="grid board" id="board">
       <div class="blurb">
         <div class="field-label">message box</div>
         <div data-lang="ja" class="active">
@@ -645,7 +650,11 @@
     link.addEventListener('click', (e) => {
       e.preventDefault();
       const target = document.querySelector(link.getAttribute('href'));
-      if (target) lenis.scrollTo(target, { duration: 1.4 });
+      if (target) {
+        const offset = link.hasAttribute('data-center')
+          ? -Math.max(0, (window.innerHeight - target.offsetHeight) / 2) : 0;
+        lenis.scrollTo(target, { duration: 1.4, offset });
+      }
     });
   });
 
@@ -2171,7 +2180,10 @@ function animate() {
   }
 
   updatePinnedChrome(fade);
-  if (stage) stage.style.opacity = fade.toFixed(3);
+  if (stage) {
+    stage.style.opacity = fade.toFixed(3);
+    stage.classList.toggle('live', fade > 0.5);
+  }
   if (closingLine) closingLine.style.opacity = closing.toFixed(3);
 
   applyGrow(grow);
