@@ -192,6 +192,21 @@
     pointer-events:none; transition: background 0.35s ease;
   }
   #progress.dark{ background:var(--ink); }
+  /* "currently playing": a single quiet line floating just above "Bulacan" */
+  .kv-onair .np{
+    position:absolute; left:0; bottom:100%; margin-bottom:10px;
+    display:flex; align-items:center; gap:8px;
+    max-width:min(380px, calc(100vw - 48px)); white-space:nowrap;
+    font-family:var(--sans); font-size:12px; letter-spacing:0.06em;
+    opacity:0; visibility:hidden; transform:translateY(4px);
+    transition: opacity 0.5s ease, transform 0.5s ease, visibility 0s linear 0.5s;
+  }
+  .kv-onair .np.on{ opacity:1; visibility:visible; transform:none; transition-delay:0s; }
+  .kv-onair .np svg{ flex:none; }
+  .kv-onair .np-label{ flex:none; opacity:0.55; font-size:11px; letter-spacing:0.12em; }
+  .kv-onair .np-text{ min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  .kv-onair .np [data-lang]{ display:none; }
+  .kv-onair .np [data-lang].active{ display:inline; }
   .kv-onair .clock{ opacity:0.55; margin-left:10px; font-family:var(--sans); font-size:11px; letter-spacing:0.12em; }
 
   .kv-jp-caption{
@@ -562,7 +577,7 @@
 
     /* the full side nav would sit on top of the text on a phone, so only the
        message-box link stays, tucked in above "Bulacan" */
-    nav.side{ top:auto; bottom:84px; left:24px; width:auto; height:auto; padding:0; }
+    nav.side{ top:auto; bottom:108px; left:24px; width:auto; height:auto; padding:0; }
     nav.side a{ display:none; margin:0; }
     nav.side a[href="#board"]{ display:block; }
     nav.side a::before{ display:none; }
@@ -574,9 +589,11 @@
     .kv-title{ left:24px; }
     .kv-onair{ left:24px; }
     .lang-toggle{ right:24px; }
+    body.past-hero .kv-onair .np{ opacity:0; }   /* like the message link: a hero-only nudge on phones */
   }
 
   @media (prefers-reduced-motion: reduce){
+    .kv-onair .np{ transition:none; }
     .marquee-layer .track{ animation:none; transition:none; }
     nav.side a[href="#board"]::after, #board .field-label::before,
     #contact .surprise .drip{ animation:none; }
@@ -667,7 +684,18 @@
 
   <!-- lily canvas: blooms on scroll down, unblooms on scroll up -->
   <div class="kv-title">kyn<br><br></div>
-  <div class="kv-onair">Bulacan<span class="clock" id="clock" aria-hidden="true"></span></div>
+  <div class="kv-onair">Bulacan<span class="clock" id="clock" aria-hidden="true"></span>
+    <!-- "currently playing" from Last.fm; filled in and shown by the nowPlaying script below.
+         Hidden whenever nothing is playing. -->
+    <div class="np" id="nowPlaying">
+      <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+        <circle cx="4.6" cy="12" r="2.6"/><rect x="6.5" y="2.4" width="1.3" height="9.6"/>
+        <path d="M7.8 2.4l5 1.7v2.6l-5-1.7z"/>
+      </svg>
+      <span class="np-label"><span data-lang="ja" class="active">再生中</span><span data-lang="en">listening to</span></span>
+      <span class="np-text"></span>
+    </div>
+  </div>
 
   <div class="lang-toggle">
     <button id="btn-ja" class="active">JA</button>
@@ -788,7 +816,7 @@
           <p class="statement">記録を、綴る。</p>
         </div>
         <div data-lang="en">
-          <p class="statement en">writing things down.</p>
+          <p class="statement en">writing things down :p</p>
         </div>
       </div>
 
@@ -806,6 +834,13 @@
             <div class="handle">
               <div data-lang="ja" class="active">ログを始めました</div>
               <div data-lang="en">started this log</div>
+            </div>
+          </div>
+           <div class="row static">
+            <span class="platform">2026.10.1</span>
+            <div class="handle">
+              <div data-lang="ja" class="active">音楽アクティビティ表示、現地時間表示、メッセージボックスでの画像送信機能を追加しました</div>
+              <div data-lang="en">added my music activity, local time, allowed images for the message box</div>
             </div>
           </div>
         </div>
@@ -834,20 +869,24 @@
       <div class="links">
         <div class="rows">
           <a class="row" href="https://instagram.com/pinkporschesenjoyer" target="_blank" rel="noopener">
-            <span class="platform">Instagram</span>
+            <span class="platform">instagram</span>
             <span class="handle">@pinkporschesenjoyer</span>
           </a>
           <div class="row copy" role="button" tabindex="0" data-copy="zieliej" aria-label="copy Discord username">
-            <span class="platform">Discord</span>
+            <span class="platform">discord</span>
             <span class="handle">zieliej</span>
           </div>
           <a class="row" href="https://tiktok.com/@kynkynu" target="_blank" rel="noopener">
-            <span class="platform">TikTok</span>
+            <span class="platform">tiktok</span>
             <span class="handle">@kynkynu</span>
           </a>
           <a class="row" href="mailto:aekynhernandez@proton.me">
-            <span class="platform">Email</span>
+            <span class="platform">email</span>
             <span class="handle">aekynhernandez@proton.me</span>
+          </a>
+          <a class="row" href="https://open.spotify.com/user/31azpladohkvhwpsh64upewzltcq?si=48e9dcd1df1147fd" target="_blank" rel="noopener">
+            <span class="platform">spotify</span>
+            <span class="handle">@kynkyn</span>
           </a>
         </div>
       </div>
@@ -863,7 +902,7 @@
           <p class="statement">匿名でメッセージを送れます。</p>
         </div>
         <div data-lang="en">
-          <p class="statement en">send me something, anonymously.</p>
+          <p class="statement en">send me something, only i can see it</p>
         </div>
       </div>
 
@@ -1247,7 +1286,7 @@
   // language toggle — swaps between two pre-written blocks, no live translation
   const btnJa = document.getElementById('btn-ja');
   const btnEn = document.getElementById('btn-en');
-  const placeholders = { ja: '匿名で、ひとこと', en: 'say something, anonymously' };
+  const placeholders = { ja: '匿名で、ひとこと', en: 'say something..' };
   const msgBox = document.getElementById('msgText');
 
   function setLang(lang, save = true){
@@ -1309,6 +1348,56 @@
     tick();
     setInterval(tick, 20000);
   }
+
+  // ---- "currently playing", from Last.fm ----
+  // Spotify -> Last.fm logs each song as you play it; this asks Last.fm every 30s
+  // which one (if any) is playing right now. The API key is public and read-only,
+  // so it's fine in the page. Never put the Last.fm *shared secret* here.
+  (function nowPlaying(){
+    const API_KEY = '9aea8261cbb436231f8d5df6752d2205';
+    const USER = 'zielmrl';
+    const POLL_MS = 30000;
+
+    const box = document.getElementById('nowPlaying');
+    if (!box) return;
+    const textEl = box.querySelector('.np-text');
+    const url = 'https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=' +
+      encodeURIComponent(USER) + '&api_key=' + API_KEY + '&format=json&limit=1';
+
+    let current = '', timer = 0, gen = 0;
+
+    function show(text){
+      if (text !== current) { textEl.textContent = text; box.title = text; current = text; }
+      box.classList.add('on');
+    }
+    function hide(){ box.classList.remove('on'); current = ''; }
+
+    async function check(){
+      try {
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        let t = data && data.recenttracks && data.recenttracks.track;
+        if (Array.isArray(t)) t = t[0];
+        const playing = t && t['@attr'] && t['@attr'].nowplaying === 'true';
+        if (!playing) { hide(); return; }
+        const artist = (t.artist && (t.artist['#text'] || t.artist.name)) || '';
+        show(artist ? t.name + ' \u2014 ' + artist : t.name);   // textContent only: track names are untrusted text
+      } catch (err) {
+        console.info('now playing unavailable:', err.message || err);   // keep whatever is showing
+      }
+    }
+
+    function loop(){
+      const mine = ++gen;
+      clearTimeout(timer);
+      check().finally(() => { if (mine === gen) timer = setTimeout(loop, POLL_MS); });
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) { gen++; clearTimeout(timer); } else loop();   // no polling in a hidden tab
+    });
+    loop();
+  })();
 
   // ---- drifting dust in the hero ----
   // Small glowing specks float up and sway, and lean a little away from the
@@ -3101,7 +3190,7 @@ animate();
 
     // checked before the fill even starts, so you never hold for nothing
     function canSend(){
-      if (!box.value.trim()) { say('先に何か書いてね。', 'write something first.'); return false; }
+      if (!box.value.trim()) { say('先に何か書いてね。', 'write something first, obviously'); return false; }
       if (Date.now() - lastSent < COOLDOWN_MS) {
         say('少し待ってからもう一度。', 'give it a few seconds first.');
         return false;
